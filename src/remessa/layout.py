@@ -157,32 +157,7 @@ def check(layout, path, con=None) -> list[str]:
     records = layout["records"]
     problems: list[str] = []
 
-    def one(q):
-        return con.sql(q).fetchall()[0][0]
-
-    if fixed:
-        # ponytail: row_number() sem ORDER BY segue a ordem do arquivo na prática
-        # (preserve_insertion_order); usado só para apontar linhas no relatório.
-        con.sql(f"CREATE OR REPLACE TEMP VIEW _remessa_lines AS SELECT line, row_number() OVER () AS n FROM {src}")
-        lines = "_remessa_lines"
-
-        def sample(cond):
-            rows = con.sql(f"SELECT n FROM {lines} WHERE {cond} ORDER BY n LIMIT 5").fetchall()
-            return ", ".join(str(r[0]) for r in rows)
-
-        any_match = " OR ".join(f"regexp_matches(line, {_q(r['match'])})" for r in records.values())
-        n = one(f"SELECT count(*) FROM {lines} WHERE NOT ({any_match})")
-        if n:
-            problems.append(f"{n} linha(s) não casam com nenhum registro (linhas {sample(f'NOT ({any_match})')})")
-        for rname, rec in records.items():
-            if rec.get("length"):
-                cond = f"regexp_matches(line, {_q(rec['match'])}) AND length(line) <> {int(rec['length'])}"
-                n = one(f"SELECT count(*) FROM {lines} WHERE {cond}")
-                if n:
-                    problems.append(
-                        f"{rname}: {n} linha(s) com tamanho diferente de {rec['length']} (linhas {sample(cond)})"
-                    )
-    else:
+    if not fixed:
         have = {r[0].lower() for r in con.sql(f"DESCRIBE SELECT * FROM {src}").fetchall()} - {"filename"}
         (rec,) = records.values()
         want = {str((f or {}).get("column", n)).lower() for n, f in rec["fields"].items()}
@@ -192,32 +167,66 @@ def check(layout, path, con=None) -> list[str]:
             problems.append(f"colunas a mais: {', '.join(sorted(have - want))}")
         if want - have:
             return problems  # sem as colunas, as checagens seguintes não rodam
-        lines = src
 
+    def is_(rec):
+        return f"regexp_matches(line, {_q(rec['match'])})" if rec.get("match") else "TRUE"
+
+    # Todas as contagens saem de uma única passada pelo arquivo.
+    aggs = {("total",): "count(*)"}
+    if fixed:
+        unmatched = "NOT (" + " OR ".join(is_(r) for r in records.values()) + ")"
+        aggs[("unmatched",)] = f"count(*) FILTER (WHERE {unmatched})"
     for rname, rec in records.items():
-        typed = {n: f for n, f in rec["fields"].items() if (f or {}).get("type", "str") != "str"}
-        if not typed:
-            continue
-        counts = ", ".join(
-            f"count(*) FILTER (WHERE {_raw(layout, n, f)} IS NOT NULL AND {_typed(layout, _raw(layout, n, f), f)} IS NULL)"
-            for n, f in typed.items()
+        aggs[("n", rname)] = f"count(*) FILTER (WHERE {is_(rec)})"
+        if fixed and rec.get("length"):
+            aggs[("len", rname)] = f"count(*) FILTER (WHERE {is_(rec)} AND length(line) <> {int(rec['length'])})"
+        for n, f in rec["fields"].items():
+            f = f or {}
+            if f.get("type", "str") != "str":
+                raw = _raw(layout, n, f)
+                aggs[("bad", rname, n)] = (
+                    f"count(*) FILTER (WHERE {is_(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL)"
+                )
+    for rule in layout.get("expect", []):
+        rname, fname = rule["equals"].split(".")
+        f = records[rname]["fields"][fname] or {}
+        aggs[("val", rule["equals"])] = (
+            f"any_value({_typed(layout, _raw(layout, fname, f), f)}) FILTER (WHERE {is_(records[rname])})"
         )
-        row = con.sql(f"SELECT {counts} FROM {lines}{_where(rec)}").fetchall()[0]
-        for (n, f), bad in zip(typed.items(), row):
-            if bad:
-                problems.append(f"{rname}.{n}: {bad} valor(es) não convertem para {f['type']}")
+    got = dict(zip(aggs, con.sql(f"SELECT {', '.join(aggs.values())} FROM {src}").fetchall()[0]))
 
+    def lines_where(cond):
+        # ponytail: row_number() sem ORDER BY segue a ordem do arquivo na prática
+        # (preserve_insertion_order). Só roda quando há problema a apontar.
+        rows = con.sql(
+            f"SELECT n FROM (SELECT line, row_number() OVER () AS n FROM {src}) WHERE {cond} ORDER BY n LIMIT 5"
+        ).fetchall()
+        return ", ".join(str(r[0]) for r in rows)
+
+    if got.get(("unmatched",)):
+        problems.append(
+            f"{got[('unmatched',)]} linha(s) não casam com nenhum registro (linhas {lines_where(unmatched)})"
+        )
+    for rname, rec in records.items():
+        if got.get(("len", rname)):
+            cond = f"{is_(rec)} AND length(line) <> {int(rec['length'])}"
+            problems.append(
+                f"{rname}: {got[('len', rname)]} linha(s) com tamanho diferente de {rec['length']} "
+                f"(linhas {lines_where(cond)})"
+            )
+    for rname, rec in records.items():
+        for n, f in rec["fields"].items():
+            if got.get(("bad", rname, n)):
+                problems.append(f"{rname}.{n}: {got[('bad', rname, n)]} valor(es) não convertem para {f['type']}")
     for rule in layout.get("expect", []):
         target = rule["count"]
-        where = "" if target == "*" else _where(records[target])
-        got = one(f"SELECT count(*) FROM {lines}{where}")
-        rname, fname = rule["equals"].split(".")
-        rec = records[rname]
-        f = rec["fields"][fname] or {}
-        vals = con.sql(f"SELECT {_typed(layout, _raw(layout, fname, f), f)} FROM {lines}{_where(rec)}").fetchall()
+        rname = rule["equals"].split(".")[0]
+        count = got[("total",)] if target == "*" else got[("n", target)]
         label = "linhas" if target == "*" else target
-        if len(vals) != 1:
-            problems.append(f"expect: esperava 1 registro {rname}, achei {len(vals)}")
-        elif vals[0][0] != got:
-            problems.append(f"expect: {rule['equals']} diz {vals[0][0]}, mas o arquivo tem {got} {label}")
+        if got[("n", rname)] != 1:
+            problems.append(f"expect: esperava 1 registro {rname}, achei {got[('n', rname)]}")
+        elif got[("val", rule["equals"])] != count:
+            problems.append(
+                f"expect: {rule['equals']} diz {got[('val', rule['equals'])]}, mas o arquivo tem {count} {label}"
+            )
     return problems

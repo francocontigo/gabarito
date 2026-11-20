@@ -99,7 +99,7 @@ remessa check cnab240 retorno.ret
 remessa export cnab240 retorno.ret saida/
 ```
 
-As posições seguem o Layout Padrão FEBRABAN 240 posições, versão 10.1. Bancos mudam detalhes como convênio e nosso número: copie `src/remessa/layouts/cnab240.yml` e ajuste. Conferido com arquivos de remessa de exemplo de oito bancos (fixtures públicas do projeto brcobranca). Retorno (T e U) só foi testado com arquivo sintético.
+As posições seguem o Layout Padrão FEBRABAN 240 posições, versão 10.1. Bancos mudam detalhes como convênio e nosso número: copie `src/remessa/layouts/cnab240.yml` e ajuste. Conferido com arquivos de remessa de exemplo de oito bancos (fixtures públicas do projeto brcobranca). Nos arquivos de retorno de exemplo do mesmo projeto, o do Sicredi passa inteiro; o do Santander foge do padrão no segmento T e precisa de layout próprio.
 
 CNAB 400 não tem padrão único entre bancos e não vem embutido.
 
@@ -117,11 +117,45 @@ q = remessa.sql("layout.yml", "arquivo.txt")["detalhe"]
 con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
 ```
 
-Para S3, configure as credenciais na conexão (`CREATE SECRET`) e use caminhos `s3://`.
+## S3
+
+Caminhos `s3://` funcionam para ler, com glob, e para gravar o Parquet. As credenciais ficam na conexão do DuckDB:
+
+```python
+con.sql("CREATE SECRET (TYPE s3, PROVIDER credential_chain)")
+remessa.load("layout.yml", "s3://bucket/remessas/*.txt", con)
+```
+
+No CLI, `--init` roda um SQL na conexão antes do comando:
+
+```bash
+remessa --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
+  export layout.yml "s3://bucket/remessas/*.txt" s3://bucket/saida
+```
+
+Testado contra um S3 local (S3Mock), com chave fixa e endpoint próprio. Não testado contra a AWS.
+
+## Arquivo grande e memória
+
+O DuckDB lê em streaming e usa disco quando a memória acaba, então a lib não divide o arquivo em pedaços. Para limitar o consumo, ajuste a conexão:
+
+```bash
+remessa --init "SET memory_limit='500MB'; SET threads=2" check layout.yml arquivo.txt
+```
+
+Medido num arquivo CNAB 240 sintético de 2,08 GB (8,6 milhões de linhas), em uma máquina de 16 threads com Windows e DuckDB 1.5.6:
+
+| Operação | Padrão (16 threads) | `memory_limit='500MB'`, 2 threads |
+|---|---|---|
+| Exportar um segmento para Parquet | 6 s, pico de 0,8 GB | 28 s, pico de 0,3 GB |
+| `check` com o layout inteiro (216 campos) | 41 s, pico de 0,9 GB | 123 s, pico de 0,2 GB |
+
+O `memory_limit` não cobre os buffers de leitura, que crescem com o número de threads. Para um teto baixo de verdade, reduza `threads` junto.
 
 ## Limites
 
-- Uma máquina só. Para arquivos de dezenas de GB funciona; acima disso, exporte Parquet e use outro engine.
+- Uma máquina só. O maior arquivo medido tem 2 GB; para volumes que pedem cluster, exporte Parquet e use outro engine.
+- Testado com DuckDB 1.5 e 2.0, em Windows e Linux.
 - Sem inferência de layout e sem detecção de encoding.
 - Os números de linha do `check` seguem a ordem de leitura do DuckDB.
 
