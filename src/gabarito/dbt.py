@@ -11,6 +11,7 @@ from typing import Any
 import duckdb
 from dbt.adapters.duckdb.plugins import BasePlugin
 from dbt.adapters.duckdb.utils import SourceConfig
+from dbt_common.invocation import get_invocation_id
 
 from gabarito.check import check
 from gabarito.layout import LayoutError
@@ -20,6 +21,8 @@ from gabarito.read import sql
 class Plugin(BasePlugin):  # type: ignore[misc]  # dbt is not installed when mypy runs
     def initialize(self, plugin_config: dict[str, Any]) -> None:
         self._local = threading.local()
+        self._checked: dict[tuple[str, str, str], list[str]] = {}
+        self._lock = threading.Lock()
 
     def configure_cursor(self, cursor: duckdb.DuckDBPyConnection) -> None:
         # dbt-duckdb registers what load() returns on the cursor it has just created, and a
@@ -33,7 +36,14 @@ class Plugin(BasePlugin):  # type: ignore[misc]  # dbt is not installed when myp
         layout, path = meta["layout"], meta["path"]
         record = source_config.identifier
         if meta.get("check"):
-            problems = check(layout, path, con)
+            # One check per file in a run, however many tables read it: it is a full pass.
+            # ponytail: one lock for all files, so two big files are checked one after the other.
+            # The invocation id is in the key because dbt keeps the plugin between runs in one process.
+            key = (get_invocation_id(), str(layout), str(path))
+            with self._lock:
+                if key not in self._checked:
+                    self._checked[key] = check(layout, path, con)
+            problems = self._checked[key]
             if problems:
                 raise LayoutError(f"{path} does not match {layout}: " + "; ".join(problems))
         queries = sql(layout, path, con)

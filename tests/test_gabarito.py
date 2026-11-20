@@ -532,7 +532,10 @@ def test_dbt_plugin(tmp_path, monkeypatch):
     )
     monkeypatch.chdir(tmp_path)
     run = ["run", "--profiles-dir", ".", "--quiet", "--threads", "4"]
+    calls = []
+    monkeypatch.setattr("gabarito.dbt.check", lambda *a: calls.append(a) or gabarito.check(*a))
     assert runner().invoke(run).success
+    assert len(calls) == 1  # two tables, one pass over the file
     with duckdb.connect("demo.duckdb") as con:
         assert con.sql("SELECT n, said FROM total").fetchall() == [(3, 3)]
 
