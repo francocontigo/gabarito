@@ -4,7 +4,7 @@ from pathlib import Path
 
 import duckdb
 
-from remessa.layout import check, sql
+from remessa.layout import _posix, check, sql
 
 
 def main(argv=None) -> int:
@@ -21,6 +21,10 @@ def main(argv=None) -> int:
         if name == "export":
             p.add_argument("out", help="pasta de saída")
     a = ap.parse_args(argv)
+    # Saída redirecionada no Windows usa a codepage local e quebra acentos; UTF-8 em todo lugar.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
 
     if a.cmd == "sql":
         for name, q in sql(a.layout, a.file).items():
@@ -33,7 +37,7 @@ def main(argv=None) -> int:
         if not problems:
             print("ok")
         return 1 if problems else 0
-    out = a.out.replace("\\", "/").rstrip("/")
+    out = _posix(a.out).rstrip("/")
     if "://" not in out:  # s3://... não tem pasta para criar
         Path(out).mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()

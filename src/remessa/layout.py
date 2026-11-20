@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from importlib import resources
 from pathlib import Path
 
@@ -15,6 +16,11 @@ TYPES = ("str", "int", "decimal", "date")
 def _q(s) -> str:
     """Literal de string SQL."""
     return "'" + str(s).replace("'", "''") + "'"
+
+
+def _posix(path) -> str:
+    """Barra normal no Windows; em outros sistemas a contrabarra é um caractere válido de nome."""
+    return str(path).replace("\\", "/") if os.sep == "\\" else str(path)
 
 
 def _id(s) -> str:
@@ -67,7 +73,7 @@ def _validate(layout: dict) -> None:
 def _source(layout: dict, path) -> str:
     """SQL da relação bruta. Tudo chega como texto; os tipos vêm depois."""
     src = layout.get("source", "fixed")
-    p = _q(str(path).replace("\\", "/"))
+    p = _q(_posix(path))
     enc = _q(layout.get("encoding", "utf-8"))
     if src == "fixed":
         # sep='' + sem aspas: a linha inteira vira uma coluna, qualquer que seja o conteúdo.
