@@ -191,7 +191,7 @@ gabarito.write(
 - Valor que não cabe no campo (texto longo demais, número grande demais ou negativo) gera erro em vez de ser cortado. Para cortar de propósito, corte na consulta: `left(nome, 40) AS nome`.
 - Campo sem coluna usa o `value` (código do tipo de registro, por exemplo), ou brancos.
 - Os registros saem na ordem do layout, cada um na ordem da sua consulta, escritos em fluxo: 30 milhões de linhas (2 GB) levaram 26 s com pico de 0,7 GB de memória, e o mesmo com `memory_limit = '2GB'`.
-- Para intercalar registros (CNAB: cada segmento P seguido do seu Q), inclua uma coluna `_order` nessas consultas. Intercalar ordena essas linhas, então precisa de memória ou espaço temporário para elas.
+- Para intercalar registros (CNAB: cada segmento P seguido do seu Q), inclua uma coluna `_order` nessas consultas. Intercalar ordena essas linhas, usando disco quando a memória é pouca: 15 milhões de pares P/Q (30 milhões de linhas) levaram 22 s na configuração padrão e 31 s com `memory_limit = '1GB'`.
 - Um layout escrito só para ler pode deixar posições de fora. Para escrever um arquivo que passe no próprio `check`, toda posição que importa precisa de um campo, incluindo o caractere de tipo do registro: `tipo: {pos: [1, 1], value: '1'}`.
 - As linhas terminam em CRLF por padrão (`newline=` muda). A saída é um arquivo local.
 

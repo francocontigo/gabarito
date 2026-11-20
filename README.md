@@ -219,7 +219,7 @@ gabarito.write(
 - A value that does not fit its field (text too long, number too large or negative) raises an error instead of being cut. To cut on purpose, do it in the query: `left(nome, 40) AS nome`.
 - A field with no column takes its `value` (record type codes, for example), or blanks.
 - Records come out in layout order, each in the order of its query, streamed to the file: 30 million lines (2 GB) took 26 s with a peak of 0.7 GB of memory, and the same under `memory_limit = '2GB'`.
-- To interleave records (CNAB: each segment P followed by its Q), add an `_order` column to those queries. Interleaving sorts those lines, so it needs memory or temp space for them.
+- To interleave records (CNAB: each segment P followed by its Q), add an `_order` column to those queries. Interleaving sorts those lines, spilling to disk when memory is short: 15 million P/Q pairs (30 million lines) took 22 s with the default settings and 31 s under `memory_limit = '1GB'`.
 - A layout that was only written to read may leave positions out. To write a file that passes its own `check`, every position that matters needs a field, including the record-type character: `tipo: {pos: [1, 1], value: '1'}`.
 - Lines end in CRLF by default (`newline=` changes it). Output is a local file.
 
