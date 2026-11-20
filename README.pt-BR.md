@@ -1,5 +1,10 @@
 # gabarito
 
+[![ci](https://github.com/francocontigo/gabarito/actions/workflows/ci.yml/badge.svg)](https://github.com/francocontigo/gabarito/actions/workflows/ci.yml)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![duckdb](https://img.shields.io/badge/duckdb-1.5%20%7C%202.0-yellow)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Um YAML descreve o arquivo que o cliente manda. O DuckDB devolve tabelas tipadas.
 
 Serve para arquivo posicional (vários tipos de registro no mesmo arquivo), CSV e Excel, do disco ou do S3, sem importar nada para um banco antes. Também escreve arquivo posicional a partir de uma consulta. Já vem com layouts de CNAB 240 e CNAB 400.
@@ -63,6 +68,56 @@ expect: trailer.qtd says 2, but the file has 3 detalhe record(s)
 Em CSV e Excel ele também acusa coluna faltando e coluna a mais. Layout inválido sai com código 2 e uma linha de erro, por exemplo `field detalhe.valor: unknown key 'typ' (did you mean 'type'?)`.
 
 O `init` adivinha os tipos de registro pelo primeiro caractere e os limites dos campos pela amostra. É um ponto de partida: nomes e tipos ficam por sua conta.
+
+## Workflows
+
+Três jeitos de usar. Os diagramas são gerados por [`docs/make_diagrams.py`](docs/make_diagrams.py).
+
+### Validar o arquivo do cliente e carregar no banco
+
+![validar e carregar](docs/workflow-load.png)
+
+```python
+con.sql("ATTACH 'postgresql://user:pass@host/db' AS pg (TYPE postgres)")
+
+problems = gabarito.check("layout.yml", "cobranca.txt", con)
+con.sql(f"COPY ({gabarito.rejects_sql('layout.yml', 'cobranca.txt')}) TO 'rejects.csv'")
+
+detalhe = gabarito.sql("layout.yml", "cobranca.txt")["detalhe"]
+con.sql(f"CREATE TABLE pg.public.detalhe AS SELECT * FROM ({detalhe}) WHERE valor IS NOT NULL")
+```
+
+Versão executável, com Postgres no Docker: [`examples/workflow`](examples/workflow).
+
+### Do bucket de chegada ao warehouse
+
+![bucket de chegada ao warehouse](docs/workflow-lake.png)
+
+```bash
+S3="CREATE SECRET (TYPE s3, PROVIDER credential_chain)"
+gabarito --init "$S3" check  cnab240 "s3://landing/*.rem" &&
+gabarito --init "$S3" export cnab240 "s3://landing/*.rem" s3://lake/cnab
+```
+
+O `check` sai com 1 quando um arquivo quebra o layout, então a exportação só roda em arquivo que bate.
+
+### Escrever o arquivo de retorno a partir de uma consulta
+
+![arquivo de retorno](docs/workflow-return.png)
+
+```python
+gabarito.write(
+    "retorno.yml",
+    {
+        "header": "SELECT current_date AS data",
+        "detalhe": "SELECT contrato, status, valor FROM pg.public.aceitos ORDER BY contrato",
+        "trailer": "SELECT count(*) AS qtd, sum(valor) AS total FROM pg.public.aceitos",
+    },
+    "retorno.txt",
+    con,
+)
+assert gabarito.check("retorno.yml", "retorno.txt") == []
+```
 
 ## Formato do layout
 
