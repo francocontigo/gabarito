@@ -309,7 +309,7 @@ def test_write_round_trip(tmp_path):
         WRITE_LAYOUT,
         {
             "header": "SELECT DATE '2026-02-01' AS data",
-            "detalhe": "dividas",
+            "detalhe": "SELECT left(nome, 10) AS nome, valor, vencimento FROM dividas",
             "trailer": "SELECT count(*) AS qtd FROM dividas",
         },
         out,
@@ -318,7 +318,7 @@ def test_write_round_trip(tmp_path):
     assert n == 4
     assert out.read_bytes().decode("latin-1").split("\r\n") == [
         "001022026" + " " * 21,
-        "1JOÃO DA SI00012345620260315  ",  # name cut to 10, implied decimal, date formatted
+        "1JOÃO DA SI00012345620260315  ",  # name cut in the query, implied decimal, date formatted
         "1MARIA     00000000500000000  ",  # NULL date written as zeros
         "9000002" + " " * 23,
         "",
@@ -329,9 +329,9 @@ def test_write_round_trip(tmp_path):
 
 
 def test_write_refuses_numbers_that_do_not_fit(tmp_path):
-    with pytest.raises(ValueError, match="detalhe.valor are negative or do not fit"):
+    with pytest.raises(ValueError, match="detalhe.valor do not fit"):
         gabarito.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, 99999999.99 AS valor"}, tmp_path / "o.txt")
-    with pytest.raises(ValueError, match="detalhe.valor are negative or do not fit"):
+    with pytest.raises(ValueError, match="detalhe.valor do not fit"):
         gabarito.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, -1.00 AS valor"}, tmp_path / "o.txt")
 
 
@@ -497,3 +497,12 @@ def test_write_line_break_in_text(tmp_path):
     query = "SELECT 'ANA' || chr(13) || chr(10) || 'B' AS nome, 1.5 AS valor"
     assert gabarito.write(WRITE_LAYOUT, {"detalhe": query}, out) == 1
     assert out.read_bytes() == b"1ANA  B    00000015000000000  \r\n"
+
+
+def test_write_long_text_is_an_error(tmp_path):
+    out = tmp_path / "out.txt"
+    with pytest.raises(ValueError, match="detalhe.nome do not fit the 10 characters"):
+        gabarito.write(WRITE_LAYOUT, {"detalhe": "SELECT 'MARIA APARECIDA' AS nome"}, out)
+    # Trailing blanks are padding; cutting on purpose happens in the query.
+    for query in ("SELECT 'ANA' || repeat(' ', 20) AS nome", "SELECT left('MARIA APARECIDA', 10) AS nome"):
+        assert gabarito.write(WRITE_LAYOUT, {"detalhe": query}, out) == 1

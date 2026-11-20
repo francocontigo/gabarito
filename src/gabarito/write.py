@@ -39,12 +39,13 @@ def write(
     ordered = [r for r in names if r in tables and "_order" in _columns(con, tables[r])]
     first, last = (names.index(ordered[0]), names.index(ordered[-1])) if ordered else (0, -1)
     parts: list[str] = []
-    guards: dict[str, tuple[str, str]] = {}
+    guards: dict[str, tuple[str, dict[str, str]]] = {}
     for i, (rname, rec) in enumerate(records.items()):
         if rname not in tables:
             continue
         query = _as_query(tables[rname])
         cols = _columns(con, tables[rname])
+        bad = guards.setdefault(rname, (query, {}))[1]
         pieces, at = [], 1
         for n, f in sorted(rec["fields"].items(), key=lambda kv: kv[1]["pos"][0]):
             start, length = f["pos"]
@@ -57,17 +58,18 @@ def write(
             if t == "str":
                 # A line break inside a value would split the record in two: it becomes a space.
                 text = f"regexp_replace(coalesce(CAST({x} AS VARCHAR), ''), '[\\r\\n]', ' ', 'g')"
-                pieces.append(f"rpad(left({text}, {length}), {length}, ' ')")
+                pieces.append(f"rpad({text}, {length}, ' ')")
+                bad[n] = f"length(rtrim({text})) > {length}"  # trailing blanks are padding, not content
             elif t == "date":
                 text = f"strftime(CAST({x} AS DATE), {_q(f['format'])})"
                 pieces.append(f"coalesce({text}, repeat('0', {length}))")
-                guards[f"{rname}.{n}"] = (query, f"{x} IS NOT NULL AND length({text}) <> {length}")
+                bad[n] = f"{x} IS NOT NULL AND length({text}) <> {length}"
             else:
                 scale = int(f.get("scale", 2)) if t == "decimal" else 0
                 # Exact: DECIMAL times a power of ten, then the digits. NULL is written as zeros.
                 text = f"CAST(CAST(CAST(coalesce({x}, 0) AS DECIMAL(38,{scale})) * {10**scale} AS HUGEINT) AS VARCHAR)"
                 pieces.append(f"lpad({text}, {length}, '0')")
-                guards[f"{rname}.{n}"] = (query, f"NOT regexp_full_match({text}, '[0-9]{{1,{length}}}')")
+                bad[n] = f"NOT regexp_full_match({text}, '[0-9]{{1,{length}}}')"
             at = start + length
         if rec.get("length", at - 1) > at - 1:
             pieces.append(f"repeat(' ', {rec['length'] - at + 1})")
@@ -78,11 +80,19 @@ def write(
             f"{' || '.join(pieces)} AS line FROM ({query})"
         )
 
-    # A number that does not fit its field would be silently cut by lpad: refuse instead.
-    for name, (query, cond) in guards.items():
-        bad = con.sql(f"SELECT count(*) FROM ({query}) WHERE {cond}").fetchall()[0][0]
-        if bad:
-            raise ValueError(f"write: {bad} value(s) of {name} are negative or do not fit the field")
+    # A value that does not fit its field would be silently cut by the padding: refuse instead.
+    # One pass per record, with a count per field.
+    for rname, (query, conds) in guards.items():
+        if not conds:
+            continue
+        counts = ", ".join(f"count(*) FILTER (WHERE {cond})" for cond in conds.values())
+        for n, count in zip(conds, con.sql(f"SELECT {counts} FROM ({query})").fetchall()[0], strict=True):
+            if count:
+                width = records[rname]["fields"][n]["pos"][1]
+                raise ValueError(
+                    f"write: {count} value(s) of {rname}.{n} do not fit the {width} characters of the field "
+                    "(too long, or a negative number); shorten them in the query, e.g. left(col, n)"
+                )
 
     cur = con.execute(f"SELECT line FROM ({' UNION ALL '.join(parts)}) ORDER BY s, o, r, n") if parts else None
     total = 0

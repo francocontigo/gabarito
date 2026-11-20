@@ -6,6 +6,7 @@
 - `init` detects the encoding instead of assuming latin-1.
 - `sql()` and `rejects_sql()` take an optional connection, used by `encoding: auto`.
 - `write`: a line break inside a text value becomes a space instead of splitting the line.
+- `write`: text longer than its field raises an error instead of being cut (breaking). Cut it in the query with `left()`.
 - Removed `rejects()`: it was `con.sql(rejects_sql(...))`. Use that.
 
 ## 0.2.0
