@@ -17,18 +17,20 @@ from diagrams.programming.language import Python
 from diagrams.saas.analytics import Snowflake
 
 HERE = Path(__file__).parent
-# Sized to stay readable at the width GitHub renders a README (about 850 px).
+# Sized to stay readable at the width GitHub renders a README (about 850 px):
+# large text, little space between nodes.
+FONT = "Arial"
 GRAPH = {
     "splines": "spline",
     "bgcolor": "white",
-    "pad": "0.3",
-    "nodesep": "0.6",
-    "ranksep": "0.75",
+    "pad": "0.9",
+    "nodesep": "0.5",
+    "ranksep": "0.55",
     "dpi": "150",
 }
-NODE = {"fontname": "Helvetica", "fontsize": "18"}
-EDGE = {"fontname": "Helvetica", "fontsize": "16", "color": "#57606a", "penwidth": "1.8"}
-CLUSTER = {"fontname": "Helvetica-Bold", "fontsize": "18", "bgcolor": "#eef6fc", "pencolor": "#9fc5e0", "margin": "18"}
+NODE = {"fontname": FONT, "fontsize": "24", "fontcolor": "#1f2328"}
+EDGE = {"color": "#57606a", "penwidth": "2.2", "arrowsize": "1.2"}
+CLUSTER = {"fontname": f"{FONT} Bold", "fontsize": "24", "bgcolor": "#eef6fc", "pencolor": "#9fc5e0", "margin": "20"}
 BAD = {"color": "#b42318", "fontcolor": "#b42318", "style": "dashed"}
 
 
@@ -47,7 +49,12 @@ def diagram(name: str) -> Diagram:
 
 def node(kind: type[Node], label: str) -> Node:
     """A node tall enough that the larger label sits below the icon instead of over it."""
-    return kind(label, height=str(2.3 + 0.45 * label.count("\n")))
+    return kind(label, height=str(2.55 + 0.6 * label.count("\n")))
+
+
+def edge(label: str = "", **attrs: str) -> Edge:
+    """An edge label in the same font as the nodes (the library defaults to another one)."""
+    return Edge(label=f"  {label}  " if label else "", fontname=FONT, fontsize="21", **attrs)
 
 
 with diagram("workflow-load"):
@@ -59,9 +66,9 @@ with diagram("workflow-load"):
     rejects = node(Document, "rejects.csv\nline, reason")
     db = node(PostgreSQL, "Postgres\ntyped table")
 
-    client >> Edge(label="sends") >> file >> check >> Edge(label="file matches") >> load
-    load >> Edge(label="ATTACH") >> db
-    check >> Edge(label="rejects", **BAD) >> rejects
+    client >> edge("sends") >> file >> check >> edge("file matches") >> load
+    load >> edge("ATTACH") >> db
+    check >> edge("rejects", **BAD) >> rejects
 
 
 with diagram("workflow-lake"):
@@ -73,7 +80,7 @@ with diagram("workflow-lake"):
     with Cluster("anything that reads Parquet", graph_attr=CLUSTER):
         engines = [node(Athena, "Athena"), node(Redshift, "Redshift"), node(Snowflake, "Snowflake")]
 
-    landing >> Edge(label="glob") >> check >> export >> parquet
+    landing >> edge("glob") >> check >> export >> parquet
     for engine in engines:
         parquet >> engine
 
@@ -86,5 +93,5 @@ with diagram("workflow-return"):
     out = node(MultipleDocuments, "retorno.txt\nheader, lines, trailer")
     client = node(Client, "client or bank")
 
-    db >> Edge(label="SELECT") >> write >> out >> Edge(label="same layout") >> check
-    out >> Edge(label="sent back") >> client
+    db >> edge("SELECT") >> write >> out >> edge("same layout") >> check
+    out >> edge("sent back") >> client
