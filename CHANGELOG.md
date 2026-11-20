@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- `remessa write`: write a fixed-width file from queries, with the same layout that reads it. `value` literals, `_order` to interleave records, and an error instead of a truncated number.
+- `remessa rejects`: the lines that break the layout, with line number and reasons.
+- `expect` accepts `sum: <record>.<field>`.
+- New built-in layouts: `cnab240_pagamentos`, `cnab240_santander`, `cnab400_bradesco_remessa`, `cnab400_bradesco_retorno`, `cnab400_itau_remessa`, `cnab400_itau_retorno`.
+- `examples/workflow`: check, rejects, load into Postgres, query, Parquet and return file in one script.
+
 ## 0.1.0
 
 First version.

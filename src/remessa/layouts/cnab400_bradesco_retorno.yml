@@ -1,0 +1,97 @@
+# CNAB 400 Bradesco, cobrança, retorno. Positions from "Manual de Procedimentos Operacionais para Troca de Arquivos - Cobrança Bradesco (Versão em Português)", capa "Versão - Março/2023" (rodapé "Versão Abril/2022"), https://banco.bradesco/assets/pessoajuridica/pdf/mpo_arquivos_layout_400P.pdf (seções "Layout do Arquivo-Retorno").
+# Cross-check: Manual de Procedimentos Nº 4008.524.0121 Versão 17 (revisado 28/09/2020) e brcobranca retorno/cnab400/bradesco.rb (só detalhe).
+# Outros tipos de registro possíveis no retorno (não transcritos): 3 rateio de crédito (opcional), 4 QR Code (opcional).
+# Fillers omitidos: header 114-379, 386-394 (brancos); detalhe 18-20 (zeros), 21 (zero), 63-70 (zeros),
+# 83-92 e 93-104 (uso do banco), 293-294, 305-314, 329-368, 381-394 (brancos); trailer 8-17, 48-57, 189-362, 386-394 (brancos).
+source: fixed
+encoding: latin-1
+records:
+  header:
+    match: '^02'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '0'}
+      identificacao_arquivo: {pos: [2, 1], value: '2'}
+      literal_retorno: {pos: [3, 7], value: 'RETORNO'}
+      codigo_servico: {pos: [10, 2], value: '01'}
+      literal_servico: {pos: [12, 15], value: 'COBRANCA'}
+      codigo_empresa: {pos: [27, 20]}
+      nome_empresa: {pos: [47, 30]}
+      codigo_banco: {pos: [77, 3], value: '237'}
+      nome_banco: {pos: [80, 15], value: 'BRADESCO'}
+      data_gravacao: {pos: [95, 6], type: date, format: '%d%m%y'}
+      densidade_gravacao: {pos: [101, 8], value: '01600000'}
+      numero_aviso_bancario: {pos: [109, 5]}
+      data_credito: {pos: [380, 6], type: date, format: '%d%m%y'}
+      sequencial: {pos: [395, 6], type: int}
+  detalhe:
+    match: '^1'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '1'}
+      tipo_inscricao_empresa: {pos: [2, 2]}
+      numero_inscricao_empresa: {pos: [4, 14]}
+      carteira: {pos: [22, 3]}                           # 21-37 identificação da empresa: zero, carteira, agência, conta, dígito
+      agencia: {pos: [25, 5]}
+      conta_corrente: {pos: [30, 7]}
+      digito_conta: {pos: [37, 1]}
+      numero_controle_participante: {pos: [38, 25]}
+      nosso_numero: {pos: [71, 12]}                      # inclui o dígito
+      indicador_rateio: {pos: [105, 1]}
+      pagamento_parcial: {pos: [106, 2]}
+      carteira_codigo: {pos: [108, 1]}
+      codigo_ocorrencia: {pos: [109, 2]}
+      data_ocorrencia: {pos: [111, 6], type: date, format: '%d%m%y'}
+      numero_documento: {pos: [117, 10]}
+      nosso_numero_confirmacao: {pos: [127, 20]}
+      data_vencimento: {pos: [147, 6], type: date, format: '%d%m%y'}
+      valor_titulo: {pos: [153, 13], type: decimal, scale: 2}
+      banco_cobrador: {pos: [166, 3]}
+      agencia_cobradora: {pos: [169, 5]}
+      especie_titulo: {pos: [174, 2]}
+      valor_despesas_cobranca: {pos: [176, 13], type: decimal, scale: 2}
+      valor_outras_despesas: {pos: [189, 13], type: decimal, scale: 2}   # outras despesas / custas de protesto
+      valor_juros_operacao_atraso: {pos: [202, 13], type: decimal, scale: 2}
+      valor_iof: {pos: [215, 13], type: decimal, scale: 2}
+      valor_abatimento: {pos: [228, 13], type: decimal, scale: 2}
+      valor_desconto: {pos: [241, 13], type: decimal, scale: 2}
+      valor_pago: {pos: [254, 13], type: decimal, scale: 2}
+      valor_juros_mora: {pos: [267, 13], type: decimal, scale: 2}
+      valor_outros_creditos: {pos: [280, 13], type: decimal, scale: 2}
+      motivo_ocorrencia_protesto: {pos: [295, 1]}        # A aceito / D desprezado, ocorrências 25 e 19
+      data_credito: {pos: [296, 6], type: date, format: '%d%m%y'}   # brancos quando a ocorrência não é liquidação
+      origem_pagamento: {pos: [302, 3]}
+      codigo_banco_cheque: {pos: [315, 4]}               # 0237 quando cheque Bradesco
+      motivos_rejeicao: {pos: [319, 10]}                 # até 5 motivos de 2 dígitos
+      numero_cartorio: {pos: [369, 2]}
+      numero_protocolo: {pos: [371, 10]}
+      sequencial: {pos: [395, 6], type: int}
+  trailer:
+    match: '^92'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '9'}
+      identificacao_retorno: {pos: [2, 1], value: '2'}
+      identificacao_tipo_registro: {pos: [3, 2], value: '01'}
+      codigo_banco: {pos: [5, 3], value: '237'}
+      quantidade_titulos_cobranca: {pos: [18, 8], type: int}
+      valor_total_cobranca: {pos: [26, 14], type: decimal, scale: 2}
+      numero_aviso_bancario: {pos: [40, 8]}
+      quantidade_ocorrencia_02: {pos: [58, 5], type: int}                        # confirmação de entradas
+      valor_ocorrencia_02: {pos: [63, 12], type: decimal, scale: 2}
+      valor_ocorrencia_06_liquidacao: {pos: [75, 12], type: decimal, scale: 2}   # manual: "Valor dos Registros-Ocorrência 06 - Liquidação"
+      quantidade_ocorrencia_06: {pos: [87, 5], type: int}
+      valor_ocorrencia_06: {pos: [92, 12], type: decimal, scale: 2}              # manual: "Valor dos Registros - Ocorrência 06"
+      quantidade_ocorrencia_09_10: {pos: [104, 5], type: int}                    # títulos baixados
+      valor_ocorrencia_09_10: {pos: [109, 12], type: decimal, scale: 2}
+      quantidade_ocorrencia_13: {pos: [121, 5], type: int}                       # abatimento cancelado
+      valor_ocorrencia_13: {pos: [126, 12], type: decimal, scale: 2}
+      quantidade_ocorrencia_14: {pos: [138, 5], type: int}                       # vencimento alterado
+      valor_ocorrencia_14: {pos: [143, 12], type: decimal, scale: 2}
+      quantidade_ocorrencia_12: {pos: [155, 5], type: int}                       # abatimento concedido
+      valor_ocorrencia_12: {pos: [160, 12], type: decimal, scale: 2}
+      quantidade_ocorrencia_19: {pos: [172, 5], type: int}                       # confirmação da instrução de protesto
+      valor_ocorrencia_19: {pos: [177, 12], type: decimal, scale: 2}
+      valor_total_rateios: {pos: [363, 15], type: decimal, scale: 2}
+      quantidade_total_rateios: {pos: [378, 8], type: int}
+      sequencial: {pos: [395, 6], type: int}

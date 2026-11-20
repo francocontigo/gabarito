@@ -374,6 +374,21 @@ def test_cli_rejects_and_write(good, tmp_path, capsys):
     assert "detalhe.valor: not a valid decimal" in rej.read_text(encoding="utf-8")
 
 
+BUILTIN = sorted(p.stem for p in (Path(remessa.__file__).parent / "layouts").glob("*.yml"))
+
+
+@pytest.mark.parametrize("name", BUILTIN)
+def test_builtin_layout_writes_what_it_reads(name, tmp_path):
+    """One line per record, written from the layout's own literals, must read back as that record."""
+    layout = remessa.load_layout(name)
+    out = tmp_path / "f.txt"
+    assert remessa.write(name, {r: "SELECT 1 AS _unused" for r in layout["records"]}, out) == len(layout["records"])
+    problems = [p for p in remessa.check(name, out) if not p.startswith("expect:")]
+    assert problems == []
+    for record, rel in remessa.load(name, out).items():
+        assert len(rel.fetchall()) == 1, record
+
+
 def test_example_runs():
     ex = Path(__file__).parent.parent / "examples"
     assert remessa.check(ex / "cobranca.yml", ex / "cobranca.txt") == []

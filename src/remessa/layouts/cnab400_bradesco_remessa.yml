@@ -1,0 +1,81 @@
+# CNAB 400 Bradesco, cobrança, remessa. Positions from "Manual de Procedimentos Operacionais para Troca de Arquivos - Cobrança Bradesco (Versão em Português)", capa "Versão - Março/2023" (rodapé "Versão Abril/2022"), https://banco.bradesco/assets/pessoajuridica/pdf/mpo_arquivos_layout_400P.pdf (seções "Layout do Arquivo-Remessa").
+# Cross-check: Manual de Procedimentos Nº 4008.524.0121 Versão 17 (revisado 28/09/2020) e brcobranca remessa/cnab400/{base,bradesco}.rb.
+# Outros tipos de registro possíveis na remessa (não transcritos): 2 mensagem (opcional), 3 rateio de crédito (opcional),
+# 6 múltiplas transferências/débito automático, 7 beneficiário final.
+# Fillers omitidos: header 101-108, 118-394 (brancos); detalhe 21 (zero), 95-104 (operação do banco, brancos),
+# 140-142 e 143-147 (preencher com zeros); trailer 2-394 (brancos).
+source: fixed
+encoding: latin-1
+records:
+  header:
+    match: '^01'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '0'}
+      identificacao_arquivo: {pos: [2, 1], value: '1'}
+      literal_remessa: {pos: [3, 7], value: 'REMESSA'}
+      codigo_servico: {pos: [10, 2], value: '01'}
+      literal_servico: {pos: [12, 15], value: 'COBRANCA'}
+      codigo_empresa: {pos: [27, 20]}
+      nome_empresa: {pos: [47, 30]}
+      codigo_banco: {pos: [77, 3], value: '237'}
+      nome_banco: {pos: [80, 15], value: 'BRADESCO'}
+      data_gravacao: {pos: [95, 6], type: date, format: '%d%m%y'}
+      identificacao_sistema: {pos: [109, 2], value: 'MX'}
+      sequencial_remessa: {pos: [111, 7], type: int}
+      sequencial: {pos: [395, 6], type: int}
+  detalhe:
+    match: '^1'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '1'}
+      agencia_debito: {pos: [2, 5]}                      # 2-20: só para débito automático
+      digito_agencia_debito: {pos: [7, 1]}
+      razao_conta_debito: {pos: [8, 5]}
+      conta_debito: {pos: [13, 7]}
+      digito_conta_debito: {pos: [20, 1]}
+      carteira: {pos: [22, 3]}                           # 21-37 identificação da empresa: zero, carteira, agência, conta, dígito
+      agencia: {pos: [25, 5]}
+      conta_corrente: {pos: [30, 7]}
+      digito_conta: {pos: [37, 1]}
+      numero_controle_participante: {pos: [38, 25]}
+      codigo_banco_debito: {pos: [63, 3]}
+      campo_multa: {pos: [66, 1]}
+      percentual_multa: {pos: [67, 4], type: decimal, scale: 2}
+      nosso_numero: {pos: [71, 11]}
+      digito_nosso_numero: {pos: [82, 1]}
+      desconto_bonificacao_dia: {pos: [83, 10], type: decimal, scale: 2}
+      condicao_emissao_papeleta: {pos: [93, 1]}
+      emite_boleto_debito_automatico: {pos: [94, 1]}
+      indicador_rateio: {pos: [105, 1]}
+      enderecamento_aviso_debito: {pos: [106, 1]}
+      quantidade_pagamentos: {pos: [107, 2]}             # pagamento parcial; brancos quando não contratado, por isso str
+      codigo_ocorrencia: {pos: [109, 2]}
+      numero_documento: {pos: [111, 10]}
+      data_vencimento: {pos: [121, 6], type: date, format: '%d%m%y'}
+      valor_titulo: {pos: [127, 13], type: decimal, scale: 2}
+      especie_titulo: {pos: [148, 2]}
+      identificacao: {pos: [150, 1], value: 'N'}
+      data_emissao: {pos: [151, 6], type: date, format: '%d%m%y'}
+      instrucao_1: {pos: [157, 2]}
+      instrucao_2: {pos: [159, 2]}
+      valor_mora_dia: {pos: [161, 13], type: decimal, scale: 2}
+      data_limite_desconto: {pos: [174, 6], type: date, format: '%d%m%y'}   # 000000 quando sem desconto
+      valor_desconto: {pos: [180, 13], type: decimal, scale: 2}
+      valor_iof: {pos: [193, 13], type: decimal, scale: 2}
+      valor_abatimento: {pos: [206, 13], type: decimal, scale: 2}
+      tipo_inscricao_pagador: {pos: [219, 2]}
+      numero_inscricao_pagador: {pos: [221, 14]}
+      nome_pagador: {pos: [235, 40]}
+      endereco_pagador: {pos: [275, 40]}
+      mensagem_1: {pos: [315, 12]}
+      cep: {pos: [327, 5]}
+      sufixo_cep: {pos: [332, 3]}
+      beneficiario_final_ou_mensagem_2: {pos: [335, 60]}
+      sequencial: {pos: [395, 6], type: int}
+  trailer:
+    match: '^9'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '9'}
+      sequencial: {pos: [395, 6], type: int}

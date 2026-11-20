@@ -157,18 +157,31 @@ remessa.write(
 - Records come out in layout order. To interleave them (CNAB: each segment P followed by its Q), add an `_order` column to those queries.
 - Lines end in CRLF by default (`newline=` changes it). Output is a local file.
 
-## CNAB 240
+## CNAB layouts
 
-A ready-made layout for bank collection (cobrança): file and batch headers and trailers, segments P, Q and R (remessa), T and U (retorno).
+Ready-made layouts for Brazilian bank files. Use the name in place of a YAML path:
 
 ```bash
 remessa check  cnab240 retorno.ret
-remessa export cnab240 retorno.ret out/
+remessa export cnab400_itau_retorno retorno.ret out/
 ```
 
-Positions follow the FEBRABAN standard layout, version 10.1. It was checked against sample remessa files from eight banks (public fixtures of the brcobranca project). Banks deviate from the standard: of the sample retorno files, Sicredi's passes as is and Santander's needs its own layout for segment T. Copy `src/remessa/layouts/cnab240.yml` and adjust.
+| Layout | Covers | Source | Checked against |
+|---|---|---|---|
+| `cnab240` | Collection: segments P, Q, R (remessa), T, U (retorno) | FEBRABAN standard v10.1 | Sample remessas from eight banks; Sicredi's sample retorno |
+| `cnab240_pagamentos` | Payments: segments A, B, J | FEBRABAN standard v10.1 | Synthetic file only |
+| `cnab240_santander` | Santander collection, remessa and retorno | Santander H7815 v3.8 (Nov 2021) | Santander's sample remessa and retorno |
+| `cnab400_bradesco_remessa`, `cnab400_bradesco_retorno` | Bradesco collection | Bradesco manual, March 2023 | Bradesco's sample remessa and retorno |
+| `cnab400_itau_remessa`, `cnab400_itau_retorno` | Itaú collection | Itaú manual, January 2017 | Itaú's sample remessa and retorno |
 
-CNAB 400 has no single standard across banks and is not included.
+The samples are public test fixtures of the brcobranca project, not production files. Before relying on a layout, run `check` on a real file from your bank and compare with the bank's current manual:
+
+- Banks deviate from FEBRABAN. Santander shifts most of segment T, which is why it has its own layout.
+- The Santander layout comes from the 2021 manual; the current edition could not be downloaded.
+- CNAB 400 has no standard across banks, and remessa and retorno are separate layouts because the detail line carries no direction flag.
+- Optional record types (CNAB 400 types 2 to 7, CNAB 240 segments not listed above) are not transcribed. They show up in `check` as lines that match no record.
+
+To adapt one, copy the file from `src/remessa/layouts/` and edit it. Every layout carries the `value` literals needed to write files as well as read them.
 
 ## S3
 

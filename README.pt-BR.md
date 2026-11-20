@@ -129,18 +129,31 @@ remessa.write(
 - Os registros saem na ordem do layout. Para intercalar (CNAB: cada segmento P seguido do seu Q), inclua uma coluna `_order` nessas consultas.
 - As linhas terminam em CRLF por padrão (`newline=` muda). A saída é um arquivo local.
 
-## CNAB 240
+## Layouts CNAB
 
-Vem um layout pronto de cobrança: header e trailer de arquivo e de lote, segmentos P, Q e R (remessa), T e U (retorno).
+Layouts prontos para arquivos bancários. Use o nome no lugar do caminho do YAML:
 
 ```bash
 remessa check  cnab240 retorno.ret
-remessa export cnab240 retorno.ret saida/
+remessa export cnab400_itau_retorno retorno.ret saida/
 ```
 
-As posições seguem o Layout Padrão FEBRABAN, versão 10.1. Foi conferido com remessas de exemplo de oito bancos (fixtures públicas do projeto brcobranca). Bancos fogem do padrão: dos retornos de exemplo, o do Sicredi passa como está e o do Santander precisa de layout próprio no segmento T. Copie `src/remessa/layouts/cnab240.yml` e ajuste.
+| Layout | Cobre | Fonte | Conferido com |
+|---|---|---|---|
+| `cnab240` | Cobrança: segmentos P, Q, R (remessa), T, U (retorno) | Padrão FEBRABAN v10.1 | Remessas de exemplo de oito bancos; retorno de exemplo do Sicredi |
+| `cnab240_pagamentos` | Pagamentos: segmentos A, B, J | Padrão FEBRABAN v10.1 | Só arquivo sintético |
+| `cnab240_santander` | Cobrança Santander, remessa e retorno | Santander H7815 v3.8 (nov/2021) | Remessa e retorno de exemplo do Santander |
+| `cnab400_bradesco_remessa`, `cnab400_bradesco_retorno` | Cobrança Bradesco | Manual Bradesco, março/2023 | Remessa e retorno de exemplo do Bradesco |
+| `cnab400_itau_remessa`, `cnab400_itau_retorno` | Cobrança Itaú | Manual Itaú, janeiro/2017 | Remessa e retorno de exemplo do Itaú |
 
-CNAB 400 não tem padrão único entre bancos e não vem embutido.
+Os exemplos são fixtures públicas de teste do projeto brcobranca, não arquivos de produção. Antes de confiar num layout, rode o `check` num arquivo real do seu banco e compare com o manual atual:
+
+- Bancos fogem do padrão FEBRABAN. O Santander desloca quase todo o segmento T, por isso tem layout próprio.
+- O layout do Santander vem do manual de 2021; a edição atual não pôde ser baixada.
+- CNAB 400 não tem padrão entre bancos, e remessa e retorno são layouts separados porque a linha de detalhe não indica a direção.
+- Tipos de registro opcionais (tipos 2 a 7 do CNAB 400, segmentos do CNAB 240 fora da lista) não foram transcritos. Aparecem no `check` como linhas que não casam com nenhum registro.
+
+Para adaptar, copie o arquivo de `src/remessa/layouts/` e edite. Todo layout traz os literais `value` necessários para escrever arquivos, além de ler.
 
 ## S3
 

@@ -1,0 +1,76 @@
+# CNAB 400 Itaú, cobrança, remessa. Positions from "Cobrança Bancária - Intercâmbio Eletrônico de Arquivos - Layout de Arquivos - CNAB 400" (Itaú), edição JANEIRO 2017, https://download.itau.com.br/bankline/layout_cobranca_400bytes_cnab_itau.pdf (seção 3.1 Arquivo Remessa).
+# Cross-check: brcobranca remessa/cnab400/{base,itau}.rb.
+# Outros tipos de registro possíveis na remessa (não transcritos): 2 multa (opcional), 4 rateio de crédito (opcional),
+# 5 cobrança por e-mail / dados do sacador avalista (opcional). O manual traz ainda um layout separado com registros tipo 6.
+# Fillers omitidos: header 31-32 (zeros), 39-46, 101-394 (brancos); detalhe 22-23 (zeros), 30-33 (brancos),
+# 87-107 (uso do banco), 265-274, 382-385, 394 (brancos); trailer 2-394 (brancos).
+source: fixed
+encoding: latin-1
+records:
+  header:
+    match: '^01'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '0'}
+      operacao: {pos: [2, 1], value: '1'}
+      literal_remessa: {pos: [3, 7], value: 'REMESSA'}
+      codigo_servico: {pos: [10, 2], value: '01'}
+      literal_servico: {pos: [12, 15], value: 'COBRANCA'}
+      agencia: {pos: [27, 4]}
+      conta: {pos: [33, 5]}
+      dac: {pos: [38, 1]}
+      nome_empresa: {pos: [47, 30]}
+      codigo_banco: {pos: [77, 3], value: '341'}
+      nome_banco: {pos: [80, 15], value: 'BANCO ITAU SA'}
+      data_geracao: {pos: [95, 6], type: date, format: '%d%m%y'}
+      sequencial: {pos: [395, 6], type: int}
+  detalhe:
+    match: '^1'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '1'}
+      codigo_inscricao_empresa: {pos: [2, 2]}
+      numero_inscricao_empresa: {pos: [4, 14]}
+      agencia: {pos: [18, 4]}
+      conta: {pos: [24, 5]}
+      dac: {pos: [29, 1]}
+      instrucao_alegacao_cancelada: {pos: [34, 4]}
+      uso_empresa: {pos: [38, 25]}
+      nosso_numero: {pos: [63, 8]}
+      quantidade_moeda: {pos: [71, 13], type: decimal, scale: 5}
+      numero_carteira: {pos: [84, 3]}
+      codigo_carteira: {pos: [108, 1]}
+      codigo_ocorrencia: {pos: [109, 2]}
+      numero_documento: {pos: [111, 10]}
+      data_vencimento: {pos: [121, 6], type: date, format: '%d%m%y'}
+      valor_titulo: {pos: [127, 13], type: decimal, scale: 2}
+      codigo_banco: {pos: [140, 3], value: '341'}
+      agencia_cobradora: {pos: [143, 5]}
+      especie: {pos: [148, 2]}
+      aceite: {pos: [150, 1]}
+      data_emissao: {pos: [151, 6], type: date, format: '%d%m%y'}
+      instrucao_1: {pos: [157, 2]}
+      instrucao_2: {pos: [159, 2]}
+      juros_1_dia: {pos: [161, 13], type: decimal, scale: 2}
+      data_limite_desconto: {pos: [174, 6], type: date, format: '%d%m%y'}   # 000000 quando sem desconto
+      valor_desconto: {pos: [180, 13], type: decimal, scale: 2}
+      valor_iof: {pos: [193, 13], type: decimal, scale: 2}
+      valor_abatimento: {pos: [206, 13], type: decimal, scale: 2}
+      codigo_inscricao_pagador: {pos: [219, 2]}
+      numero_inscricao_pagador: {pos: [221, 14]}
+      nome_pagador: {pos: [235, 30]}
+      logradouro: {pos: [275, 40]}
+      bairro: {pos: [315, 12]}
+      cep: {pos: [327, 8]}
+      cidade: {pos: [335, 15]}
+      estado: {pos: [350, 2]}
+      sacador_avalista: {pos: [352, 30]}
+      data_mora: {pos: [386, 6], type: date, format: '%d%m%y'}              # 000000 quando não informada
+      prazo: {pos: [392, 2]}                                                # quantidade de dias; str para aceitar brancos
+      sequencial: {pos: [395, 6], type: int}
+  trailer:
+    match: '^9'
+    length: 400
+    fields:
+      tipo_registro: {pos: [1, 1], value: '9'}
+      sequencial: {pos: [395, 6], type: int}
