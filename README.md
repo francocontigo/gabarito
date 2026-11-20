@@ -1,4 +1,4 @@
-# remessa
+# gabarito
 
 A YAML file describes the file your client sends. DuckDB gives you typed tables.
 
@@ -18,15 +18,15 @@ Companies that receive files from clients end up with one hand-written parser pe
 - A trailer that says "120 records" is usually parsed and never compared with the file.
 - A value that fails to convert is logged, or silently becomes garbage.
 
-`remessa` is the small layer that covers those three. The layout is data, the SQL is generated, and `check` tells you whether today's file matches the layout before anything is loaded.
+`gabarito` is the small layer that covers those three. The layout is data, the SQL is generated, and `check` tells you whether today's file matches the layout before anything is loaded.
 
 ## Try it
 
 ```bash
-git clone <this repo> && cd remessa
+git clone <this repo> && cd gabarito
 pip install .
-remessa check  examples/cobranca.yml examples/cobranca.txt
-remessa export examples/cobranca.yml examples/cobranca.txt out/
+gabarito check  examples/cobranca.yml examples/cobranca.txt
+gabarito export examples/cobranca.yml examples/cobranca.txt out/
 ```
 
 [`examples/cobranca.yml`](examples/cobranca.yml):
@@ -60,10 +60,10 @@ expect:
 ```
 
 ```python
-import duckdb, remessa
+import duckdb, gabarito
 
 con = duckdb.connect()
-tables = remessa.load("examples/cobranca.yml", "examples/cobranca.txt", con)
+tables = gabarito.load("examples/cobranca.yml", "examples/cobranca.txt", con)
 detalhe = tables["detalhe"]
 con.sql("SELECT nome, valor, vencimento FROM detalhe WHERE valor > 1000").show()
 ```
@@ -71,12 +71,12 @@ con.sql("SELECT nome, valor, vencimento FROM detalhe WHERE valor > 1000").show()
 ## Command line
 
 ```bash
-remessa init   file.txt                     # draft a layout from a sample of the file
-remessa check  layout.yml file.txt          # does the file match the layout?
-remessa sql    layout.yml file.txt          # print the generated SQL
-remessa export layout.yml file.txt out/     # one Parquet file per record
-remessa rejects layout.yml file.txt bad.csv # the lines that break the layout, with the reasons
-remessa write  layout.yml out.txt --from detalhe="SELECT ..."   # tables -> fixed-width file
+gabarito init   file.txt                     # draft a layout from a sample of the file
+gabarito check  layout.yml file.txt          # does the file match the layout?
+gabarito sql    layout.yml file.txt          # print the generated SQL
+gabarito export layout.yml file.txt out/     # one Parquet file per record
+gabarito rejects layout.yml file.txt bad.csv # the lines that break the layout, with the reasons
+gabarito write  layout.yml out.txt --from detalhe="SELECT ..."   # tables -> fixed-width file
 ```
 
 `check` exits with 1 and lists what it found:
@@ -124,7 +124,7 @@ Each table has a `_file` column with the source file (except `xlsx`).
 `check` counts problems; `rejects` gives you the lines, so a pipeline can load the good ones and send the bad ones back.
 
 ```python
-remessa.rejects("layout.yml", "file.txt", con)   # _file, _line, reasons, line
+gabarito.rejects("layout.yml", "file.txt", con)   # _file, _line, reasons, line
 ```
 
 ```
@@ -139,7 +139,7 @@ _line | reasons                                                                 
 The same layout that reads a file writes one. Each record is fed by a query or a table; columns are matched to fields by name.
 
 ```python
-remessa.write(
+gabarito.write(
     "retorno.yml",
     {
         "header": "SELECT current_date AS data",
@@ -162,8 +162,8 @@ remessa.write(
 Ready-made layouts for Brazilian bank files. Use the name in place of a YAML path:
 
 ```bash
-remessa check  cnab240 retorno.ret
-remessa export cnab400_itau_retorno retorno.ret out/
+gabarito check  cnab240 retorno.ret
+gabarito export cnab400_itau_retorno retorno.ret out/
 ```
 
 | Layout | Covers | Source | Checked against |
@@ -181,7 +181,7 @@ The samples are public test fixtures of the brcobranca project, not production f
 - CNAB 400 has no standard across banks, and remessa and retorno are separate layouts because the detail line carries no direction flag.
 - Optional record types (CNAB 400 types 2 to 7, CNAB 240 segments not listed above) are not transcribed. They show up in `check` as lines that match no record.
 
-To adapt one, copy the file from `src/remessa/layouts/` and edit it. Every layout carries the `value` literals needed to write files as well as read them.
+To adapt one, copy the file from `src/gabarito/layouts/` and edit it. Every layout carries the `value` literals needed to write files as well as read them.
 
 ## S3
 
@@ -189,13 +189,13 @@ To adapt one, copy the file from `src/remessa/layouts/` and edit it. Every layou
 
 ```python
 con.sql("CREATE SECRET (TYPE s3, PROVIDER credential_chain)")
-remessa.load("layout.yml", "s3://bucket/remessas/*.txt", con)
+gabarito.load("layout.yml", "s3://bucket/remessas/*.txt", con)
 ```
 
 On the command line, `--init` runs SQL on the connection before the command:
 
 ```bash
-remessa --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
+gabarito --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
   export layout.yml "s3://bucket/remessas/*.txt" s3://bucket/out
 ```
 
@@ -205,13 +205,13 @@ Tested against a local S3 (S3Mock) with a fixed key and custom endpoint. Not tes
 
 DuckDB only executes. Two ways out:
 
-**Parquet.** `remessa export` writes Parquet, which Redshift, Snowflake, BigQuery, Athena and Spark read directly.
+**Parquet.** `gabarito export` writes Parquet, which Redshift, Snowflake, BigQuery, Athena and Spark read directly.
 
 **Straight through DuckDB.** It attaches Postgres and MySQL and writes to them (Postgres is exercised by [`examples/workflow`](examples/workflow); MySQL was not tested):
 
 ```python
 con.sql("ATTACH 'postgresql://user:pass@host/db' AS pg (TYPE postgres)")
-q = remessa.sql("layout.yml", "file.txt")["detalhe"]
+q = gabarito.sql("layout.yml", "file.txt")["detalhe"]
 con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
 ```
 
@@ -220,7 +220,7 @@ con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
 No Python code touches the rows. The library builds SQL; DuckDB reads the file in streaming, in parallel, and spills to disk when memory runs out. So there is no chunking code here, and the memory ceiling is a connection setting:
 
 ```bash
-remessa --init "SET memory_limit='500MB'; SET threads=2" check layout.yml file.txt
+gabarito --init "SET memory_limit='500MB'; SET threads=2" check layout.yml file.txt
 ```
 
 `memory_limit` does not cover read buffers, which grow with the thread count. For a low ceiling, lower `threads` too.
@@ -228,7 +228,7 @@ remessa --init "SET memory_limit='500MB'; SET threads=2" check layout.yml file.t
 To consume rows in Python in batches instead of all at once:
 
 ```python
-cur = con.execute(remessa.sql("layout.yml", "file.txt")["detalhe"])
+cur = con.execute(gabarito.sql("layout.yml", "file.txt")["detalhe"])
 while rows := cur.fetchmany(50_000):
     ...
 ```

@@ -1,5 +1,5 @@
 [project]
-name = "remessa"
+name = "gabarito"
 version = "0.2.0"
 description = "YAML layouts for fixed-width, CSV and Excel files. DuckDB gives you typed tables."
 license = "MIT"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-remessa = "remessa.cli:main"
+gabarito = "gabarito.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]

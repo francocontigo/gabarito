@@ -6,8 +6,8 @@ import duckdb
 import pytest
 import yaml
 
-import remessa
-from remessa.cli import main
+import gabarito
+from gabarito.cli import main
 
 LAYOUT = {
     "source": "fixed",
@@ -58,7 +58,7 @@ def good(tmp_path):
 
 
 def test_types(good):
-    rels = remessa.load(LAYOUT, good)
+    rels = gabarito.load(LAYOUT, good)
     assert rels["header"].fetchall()[0][1] == datetime.date(2026, 2, 1)
     rows = rels["detalhe"].project("nome, valor, vencimento, obs").fetchall()
     assert rows == [
@@ -70,7 +70,7 @@ def test_types(good):
 
 
 def test_check_ok(good):
-    assert remessa.check(LAYOUT, good) == []
+    assert gabarito.check(LAYOUT, good) == []
 
 
 def test_check_reports_problems(tmp_path):
@@ -85,7 +85,7 @@ def test_check_reports_problems(tmp_path):
             "9000002",  # trailer says 2, file has 3
         ],
     )
-    problems = "\n".join(remessa.check(LAYOUT, p))
+    problems = "\n".join(gabarito.check(LAYOUT, p))
     assert "1 line(s) match no record (lines 5)" in problems
     assert "detalhe: 1 line(s) with length other than 50 (lines 3)" in problems
     assert "detalhe.valor: 1 value(s) do not convert to decimal" in problems
@@ -111,15 +111,15 @@ CSV_LAYOUT = {
 def test_csv(tmp_path):
     p = tmp_path / "d.csv"
     p.write_text("Contrato;Valor;Vencimento\n000123;1.234,56;15/03/2026\n", encoding="utf-8")
-    rows = remessa.load(CSV_LAYOUT, p)["dividas"].project("contrato, valor, vencimento").fetchall()
+    rows = gabarito.load(CSV_LAYOUT, p)["dividas"].project("contrato, valor, vencimento").fetchall()
     assert rows == [("000123", Decimal("1234.56"), datetime.date(2026, 3, 15))]  # leading zeros kept
-    assert remessa.check(CSV_LAYOUT, p) == []
+    assert gabarito.check(CSV_LAYOUT, p) == []
 
 
 def test_csv_missing_and_unexpected_columns(tmp_path):
     p = tmp_path / "d.csv"
     p.write_text("Contrato;Valor;Novo\n1;1,00;x\n", encoding="utf-8")
-    assert remessa.check(CSV_LAYOUT, p) == ["missing columns: vencimento", "unexpected columns: novo"]
+    assert gabarito.check(CSV_LAYOUT, p) == ["missing columns: vencimento", "unexpected columns: novo"]
 
 
 def test_xlsx(tmp_path):
@@ -134,9 +134,9 @@ def test_xlsx(tmp_path):
         f"TO '{p}' WITH (FORMAT xlsx, HEADER true)"
     )
     layout = {**CSV_LAYOUT, "source": "xlsx"}
-    rows = remessa.load(layout, p)["dividas"].fetchall()
+    rows = gabarito.load(layout, p)["dividas"].fetchall()
     assert rows == [("000123", Decimal("1234.56"), datetime.date(2026, 3, 15))]
-    assert remessa.check(layout, p) == []
+    assert gabarito.check(layout, p) == []
 
 
 @pytest.mark.parametrize(
@@ -151,8 +151,8 @@ def test_xlsx(tmp_path):
     ],
 )
 def test_invalid_layout(layout, message):
-    with pytest.raises(remessa.LayoutError, match=message):
-        remessa.load_layout(layout)
+    with pytest.raises(gabarito.LayoutError, match=message):
+        gabarito.load_layout(layout)
 
 
 def test_cli_check_and_export(good, tmp_path):
@@ -174,19 +174,19 @@ def test_cli_errors_are_one_line(good, tmp_path, capsys):
 
 
 def test_init_fixed_draft_matches_the_file(good):
-    draft = yaml.safe_load(remessa.init(good))
+    draft = yaml.safe_load(gabarito.init(good))
     assert set(draft["records"]) == {"record_0", "record_1", "record_9"}
     assert draft["records"]["record_1"]["length"] == 50
-    assert remessa.check(draft, good) == []
+    assert gabarito.check(draft, good) == []
 
 
 def test_init_csv(tmp_path):
     p = tmp_path / "d.csv"
     p.write_text("Contrato;Valor Total;Vencimento\n000123;1.234,56;15/03/2026\n", encoding="utf-8")
-    draft = yaml.safe_load(remessa.init(p))
+    draft = yaml.safe_load(gabarito.init(p))
     assert draft["delimiter"] == ";"
     assert draft["records"]["rows"]["fields"]["valor_total"] == {"column": "Valor Total"}
-    assert remessa.check(draft, p) == []
+    assert gabarito.check(draft, p) == []
 
 
 def cnab_line(**at):
@@ -211,8 +211,8 @@ def test_builtin_cnab240(tmp_path):
         ],
         "cnab.rem",
     )
-    assert remessa.check("cnab240", p) == []
-    t = remessa.load("cnab240", p)
+    assert gabarito.check("cnab240", p) == []
+    t = gabarito.load("cnab240", p)
     assert t["header_arquivo"].project("nome_empresa, data_geracao").fetchall() == [
         ("EMPRESA SINTÉTICA", datetime.date(2026, 11, 19))
     ]
@@ -233,8 +233,8 @@ def test_expect_sum(tmp_path):
         },
         "expect": [{"sum": "d.valor", "equals": "t.total"}],
     }
-    assert remessa.check(layout, write(tmp_path, ["1001050", "1000250", "900001300"])) == []
-    assert remessa.check(layout, write(tmp_path, ["1001050", "1000250", "900009999"])) == [
+    assert gabarito.check(layout, write(tmp_path, ["1001050", "1000250", "900001300"])) == []
+    assert gabarito.check(layout, write(tmp_path, ["1001050", "1000250", "900009999"])) == [
         "expect: t.total says 99.99, but d.valor adds up to 13.00"
     ]
 
@@ -251,7 +251,7 @@ def test_rejects(tmp_path):
             "9000003",
         ],
     )
-    rows = remessa.rejects(LAYOUT, p).project("_line, reasons, line").fetchall()
+    rows = gabarito.rejects(LAYOUT, p).project("_line, reasons, line").fetchall()
     assert [(n, why) for n, why, _ in rows] == [
         (3, "detalhe: length 47, expected 50"),
         (4, "detalhe.valor: not a valid decimal; detalhe.vencimento: not a valid date"),
@@ -263,7 +263,7 @@ def test_rejects(tmp_path):
 def test_rejects_csv(tmp_path):
     p = tmp_path / "d.csv"
     p.write_text("Contrato;Valor;Vencimento\n1;1,00;15/03/2026\n2;abc;99/99/2026\n", encoding="utf-8")
-    rows = remessa.rejects(CSV_LAYOUT, p).project("reasons, Contrato").fetchall()
+    rows = gabarito.rejects(CSV_LAYOUT, p).project("reasons, Contrato").fetchall()
     assert rows == [("dividas.valor: not a valid decimal; dividas.vencimento: not a valid date", "2")]
 
 
@@ -305,7 +305,7 @@ def test_write_round_trip(tmp_path):
         "('JOÃO DA SILVA SAURO', 1234.56, DATE '2026-03-15'), ('MARIA', 0.05, NULL)) t(nome, valor, vencimento)"
     )
     out = tmp_path / "saida.txt"
-    n = remessa.write(
+    n = gabarito.write(
         WRITE_LAYOUT,
         {
             "header": "SELECT DATE '2026-02-01' AS data",
@@ -323,22 +323,22 @@ def test_write_round_trip(tmp_path):
         "9000002" + " " * 23,
         "",
     ]
-    assert remessa.check(WRITE_LAYOUT, out) == []
-    back = remessa.load(WRITE_LAYOUT, out)["detalhe"].project("nome, valor, vencimento").fetchall()
+    assert gabarito.check(WRITE_LAYOUT, out) == []
+    back = gabarito.load(WRITE_LAYOUT, out)["detalhe"].project("nome, valor, vencimento").fetchall()
     assert back == [("JOÃO DA SI", Decimal("1234.56"), datetime.date(2026, 3, 15)), ("MARIA", Decimal("0.05"), None)]
 
 
 def test_write_refuses_numbers_that_do_not_fit(tmp_path):
     with pytest.raises(ValueError, match="detalhe.valor are negative or do not fit"):
-        remessa.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, 99999999.99 AS valor"}, tmp_path / "o.txt")
+        gabarito.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, 99999999.99 AS valor"}, tmp_path / "o.txt")
     with pytest.raises(ValueError, match="detalhe.valor are negative or do not fit"):
-        remessa.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, -1.00 AS valor"}, tmp_path / "o.txt")
+        gabarito.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, -1.00 AS valor"}, tmp_path / "o.txt")
 
 
 def test_write_cnab240_interleaves_segments_and_checks_clean(tmp_path):
     out = tmp_path / "gerado.rem"
     titulos = "(VALUES (1, 'ANA', 150.00), (2, 'BRUNO', 32.99)) t(i, nome, valor)"
-    remessa.write(
+    gabarito.write(
         "cnab240",
         {
             "header_arquivo": "SELECT '001' AS banco, 'EMPRESA' AS nome_empresa, DATE '2026-11-20' AS data_geracao",
@@ -354,8 +354,8 @@ def test_write_cnab240_interleaves_segments_and_checks_clean(tmp_path):
     )
     lines = out.read_text(encoding="latin-1").splitlines()
     assert [ln[7] + ln[13] for ln in lines] == ["0 ", "1 ", "3P", "3Q", "3P", "3Q", "5 ", "9 "]
-    assert remessa.check("cnab240", out) == []
-    t = remessa.load("cnab240", out)
+    assert gabarito.check("cnab240", out) == []
+    t = gabarito.load("cnab240", out)
     assert t["segmento_p"].project("valor_nominal").fetchall() == [(Decimal("150.00"),), (Decimal("32.99"),)]
     assert t["segmento_q"].project("pagador_nome").fetchall() == [("ANA",), ("BRUNO",)]
 
@@ -374,22 +374,22 @@ def test_cli_rejects_and_write(good, tmp_path, capsys):
     assert "detalhe.valor: not a valid decimal" in rej.read_text(encoding="utf-8")
 
 
-BUILTIN = sorted(p.stem for p in (Path(remessa.__file__).parent / "layouts").glob("*.yml"))
+BUILTIN = sorted(p.stem for p in (Path(gabarito.__file__).parent / "layouts").glob("*.yml"))
 
 
 @pytest.mark.parametrize("name", BUILTIN)
 def test_builtin_layout_writes_what_it_reads(name, tmp_path):
     """One line per record, written from the layout's own literals, must read back as that record."""
-    layout = remessa.load_layout(name)
+    layout = gabarito.load_layout(name)
     out = tmp_path / "f.txt"
-    assert remessa.write(name, {r: "SELECT 1 AS _unused" for r in layout["records"]}, out) == len(layout["records"])
-    problems = [p for p in remessa.check(name, out) if not p.startswith("expect:")]
+    assert gabarito.write(name, {r: "SELECT 1 AS _unused" for r in layout["records"]}, out) == len(layout["records"])
+    problems = [p for p in gabarito.check(name, out) if not p.startswith("expect:")]
     assert problems == []
-    for record, rel in remessa.load(name, out).items():
+    for record, rel in gabarito.load(name, out).items():
         assert len(rel.fetchall()) == 1, record
 
 
 def test_example_runs():
     ex = Path(__file__).parent.parent / "examples"
-    assert remessa.check(ex / "cobranca.yml", ex / "cobranca.txt") == []
-    assert len(remessa.load(ex / "cobranca.yml", ex / "cobranca.txt")["detalhe"].fetchall()) == 3
+    assert gabarito.check(ex / "cobranca.yml", ex / "cobranca.txt") == []
+    assert len(gabarito.load(ex / "cobranca.yml", ex / "cobranca.txt")["detalhe"].fetchall()) == 3

@@ -1,4 +1,4 @@
-# remessa
+# gabarito
 
 Um YAML descreve o arquivo que o cliente manda. O DuckDB devolve tabelas tipadas.
 
@@ -18,24 +18,24 @@ Empresa que recebe arquivo de cliente acaba com um parser escrito à mão por cl
 - O trailer que diz "120 registros" costuma ser lido e nunca comparado com o arquivo.
 - O valor que não converte vai para um log, ou vira lixo em silêncio.
 
-O `remessa` é a camada pequena que cobre esses três pontos. O layout é dado, o SQL é gerado, e o `check` diz se o arquivo de hoje bate com o layout antes de qualquer carga.
+O `gabarito` é a camada pequena que cobre esses três pontos. O layout é dado, o SQL é gerado, e o `check` diz se o arquivo de hoje bate com o layout antes de qualquer carga.
 
 ## Para testar
 
 ```bash
-git clone <este repo> && cd remessa
+git clone <este repo> && cd gabarito
 pip install .
-remessa check  examples/cobranca.yml examples/cobranca.txt
-remessa export examples/cobranca.yml examples/cobranca.txt saida/
+gabarito check  examples/cobranca.yml examples/cobranca.txt
+gabarito export examples/cobranca.yml examples/cobranca.txt saida/
 ```
 
 O layout do exemplo está em [`examples/cobranca.yml`](examples/cobranca.yml).
 
 ```python
-import duckdb, remessa
+import duckdb, gabarito
 
 con = duckdb.connect()
-tabelas = remessa.load("examples/cobranca.yml", "examples/cobranca.txt", con)
+tabelas = gabarito.load("examples/cobranca.yml", "examples/cobranca.txt", con)
 detalhe = tabelas["detalhe"]
 con.sql("SELECT nome, valor, vencimento FROM detalhe WHERE valor > 1000").show()
 ```
@@ -43,12 +43,12 @@ con.sql("SELECT nome, valor, vencimento FROM detalhe WHERE valor > 1000").show()
 ## Linha de comando
 
 ```bash
-remessa init   arquivo.txt                    # rascunho de layout a partir de uma amostra
-remessa check  layout.yml arquivo.txt         # o arquivo bate com o layout?
-remessa sql    layout.yml arquivo.txt         # imprime o SQL gerado
-remessa export layout.yml arquivo.txt saida/  # um Parquet por registro
-remessa rejects layout.yml arquivo.txt ruins.csv  # as linhas que quebram o layout, com o motivo
-remessa write  layout.yml saida.txt --from detalhe="SELECT ..."  # tabelas -> arquivo posicional
+gabarito init   arquivo.txt                    # rascunho de layout a partir de uma amostra
+gabarito check  layout.yml arquivo.txt         # o arquivo bate com o layout?
+gabarito sql    layout.yml arquivo.txt         # imprime o SQL gerado
+gabarito export layout.yml arquivo.txt saida/  # um Parquet por registro
+gabarito rejects layout.yml arquivo.txt ruins.csv  # as linhas que quebram o layout, com o motivo
+gabarito write  layout.yml saida.txt --from detalhe="SELECT ..."  # tabelas -> arquivo posicional
 ```
 
 O `check` sai com código 1 e lista o que achou (as mensagens são em inglês):
@@ -96,7 +96,7 @@ Cada tabela traz `_file` com o arquivo de origem (exceto `xlsx`).
 O `check` conta os problemas; o `rejects` entrega as linhas, para o pipeline carregar as boas e devolver as ruins.
 
 ```python
-remessa.rejects("layout.yml", "arquivo.txt", con)   # _file, _line, reasons, line
+gabarito.rejects("layout.yml", "arquivo.txt", con)   # _file, _line, reasons, line
 ```
 
 ```
@@ -111,7 +111,7 @@ _line | reasons                                                                 
 O mesmo layout que lê um arquivo escreve um. Cada registro é alimentado por uma consulta ou tabela; as colunas casam com os campos pelo nome.
 
 ```python
-remessa.write(
+gabarito.write(
     "retorno.yml",
     {
         "header": "SELECT current_date AS data",
@@ -134,8 +134,8 @@ remessa.write(
 Layouts prontos para arquivos bancários. Use o nome no lugar do caminho do YAML:
 
 ```bash
-remessa check  cnab240 retorno.ret
-remessa export cnab400_itau_retorno retorno.ret saida/
+gabarito check  cnab240 retorno.ret
+gabarito export cnab400_itau_retorno retorno.ret saida/
 ```
 
 | Layout | Cobre | Fonte | Conferido com |
@@ -153,7 +153,7 @@ Os exemplos são fixtures públicas de teste do projeto brcobranca, não arquivo
 - CNAB 400 não tem padrão entre bancos, e remessa e retorno são layouts separados porque a linha de detalhe não indica a direção.
 - Tipos de registro opcionais (tipos 2 a 7 do CNAB 400, segmentos do CNAB 240 fora da lista) não foram transcritos. Aparecem no `check` como linhas que não casam com nenhum registro.
 
-Para adaptar, copie o arquivo de `src/remessa/layouts/` e edite. Todo layout traz os literais `value` necessários para escrever arquivos, além de ler.
+Para adaptar, copie o arquivo de `src/gabarito/layouts/` e edite. Todo layout traz os literais `value` necessários para escrever arquivos, além de ler.
 
 ## S3
 
@@ -161,13 +161,13 @@ Caminhos `s3://` funcionam para ler, com glob, e para gravar o Parquet. As crede
 
 ```python
 con.sql("CREATE SECRET (TYPE s3, PROVIDER credential_chain)")
-remessa.load("layout.yml", "s3://bucket/remessas/*.txt", con)
+gabarito.load("layout.yml", "s3://bucket/remessas/*.txt", con)
 ```
 
 No CLI, `--init` roda um SQL na conexão antes do comando:
 
 ```bash
-remessa --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
+gabarito --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
   export layout.yml "s3://bucket/remessas/*.txt" s3://bucket/saida
 ```
 
@@ -177,13 +177,13 @@ Testado contra um S3 local (S3Mock), com chave fixa e endpoint próprio. Não te
 
 O DuckDB é só quem executa. Dois caminhos:
 
-**Parquet.** `remessa export` grava Parquet, que Redshift, Snowflake, BigQuery, Athena e Spark leem direto.
+**Parquet.** `gabarito export` grava Parquet, que Redshift, Snowflake, BigQuery, Athena e Spark leem direto.
 
 **Direto pelo DuckDB.** Ele anexa Postgres e MySQL e grava neles (o Postgres é exercitado em [`examples/workflow`](examples/workflow); MySQL não foi testado):
 
 ```python
 con.sql("ATTACH 'postgresql://user:senha@host/db' AS pg (TYPE postgres)")
-q = remessa.sql("layout.yml", "arquivo.txt")["detalhe"]
+q = gabarito.sql("layout.yml", "arquivo.txt")["detalhe"]
 con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
 ```
 
@@ -192,7 +192,7 @@ con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
 Nenhum código Python toca nas linhas. A lib monta SQL; o DuckDB lê o arquivo em streaming, em paralelo, e usa disco quando a memória acaba. Por isso não há código de chunking aqui, e o teto de memória é configuração da conexão:
 
 ```bash
-remessa --init "SET memory_limit='500MB'; SET threads=2" check layout.yml arquivo.txt
+gabarito --init "SET memory_limit='500MB'; SET threads=2" check layout.yml arquivo.txt
 ```
 
 O `memory_limit` não cobre os buffers de leitura, que crescem com o número de threads. Para um teto baixo, reduza `threads` junto.
@@ -200,7 +200,7 @@ O `memory_limit` não cobre os buffers de leitura, que crescem com o número de 
 Para consumir as linhas em Python em lotes, em vez de tudo de uma vez:
 
 ```python
-cur = con.execute(remessa.sql("layout.yml", "arquivo.txt")["detalhe"])
+cur = con.execute(gabarito.sql("layout.yml", "arquivo.txt")["detalhe"])
 while linhas := cur.fetchmany(50_000):
     ...
 ```

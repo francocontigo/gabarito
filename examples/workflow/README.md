@@ -12,12 +12,12 @@ docker compose down
 
 | Step | What happens | Call |
 |---|---|---|
-| 1 | Compare the file with the layout: counts, sums, line lengths, types | `remessa.check` |
-| 2 | Set aside the lines that break it, with the reason | `remessa.rejects` |
-| 3 | Load the typed rows into Postgres | `remessa.sql` + DuckDB `ATTACH` |
+| 1 | Compare the file with the layout: counts, sums, line lengths, types | `gabarito.check` |
+| 2 | Set aside the lines that break it, with the reason | `gabarito.rejects` |
+| 3 | Load the typed rows into Postgres | `gabarito.sql` + DuckDB `ATTACH` |
 | 4 | Join them with a table that already lives in the database | `postgres_query` |
 | 5 | Export the result to Parquet | DuckDB `COPY` |
-| 6 | Write the fixed-width return file from a query | `remessa.write` |
+| 6 | Write the fixed-width return file from a query | `gabarito.write` |
 
 ## Input
 

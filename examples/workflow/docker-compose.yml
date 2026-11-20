@@ -2,12 +2,12 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: remessa
-      POSTGRES_PASSWORD: remessa
-      POSTGRES_DB: remessa
+      POSTGRES_USER: gabarito
+      POSTGRES_PASSWORD: gabarito
+      POSTGRES_DB: gabarito
     ports:
       - "55432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U remessa"]
+      test: ["CMD-SHELL", "pg_isready -U gabarito"]
       interval: 2s
       retries: 20

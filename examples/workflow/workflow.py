@@ -13,12 +13,12 @@ from pathlib import Path
 
 import duckdb
 
-import remessa
+import gabarito
 
 HERE = Path(__file__).parent
 OUT = HERE / "out"
 OUT.mkdir(exist_ok=True)
-PG = "postgresql://remessa:remessa@localhost:55432/remessa"
+PG = "postgresql://gabarito:gabarito@localhost:55432/gabarito"
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -33,17 +33,17 @@ con.sql("CREATE TABLE pg.public.contratos (contrato VARCHAR, status VARCHAR)")
 con.sql("INSERT INTO pg.public.contratos VALUES ('CT-0001','ATIVO'), ('CT-0002','ATIVO'), ('CT-0003','QUITADO'), ('CT-0005','ATIVO')")
 
 print("1. check")
-for problem in remessa.check(HERE / "entrada.yml", HERE / "entrada.txt", con) or ["ok"]:
+for problem in gabarito.check(HERE / "entrada.yml", HERE / "entrada.txt", con) or ["ok"]:
     print("  ", problem)
 
 print("2. rejects -> out/rejeitadas.csv")
-rejected = remessa.rejects(HERE / "entrada.yml", HERE / "entrada.txt", con)
+rejected = gabarito.rejects(HERE / "entrada.yml", HERE / "entrada.txt", con)
 con.sql(f"COPY rejected TO '{(OUT / 'rejeitadas.csv').as_posix()}'")
 for line, reasons in rejected.project("_line, reasons").fetchall():
     print(f"   line {line}: {reasons}")
 
 print("3. load into Postgres")
-detalhe = remessa.sql(HERE / "entrada.yml", HERE / "entrada.txt")["detalhe"]
+detalhe = gabarito.sql(HERE / "entrada.yml", HERE / "entrada.txt")["detalhe"]
 con.sql(f"CREATE TABLE pg.public.remessa_detalhe AS SELECT * FROM ({detalhe}) WHERE valor IS NOT NULL")
 print("   rows in Postgres:", con.sql("SELECT count(*) FROM pg.public.remessa_detalhe").fetchall()[0][0])
 
@@ -60,7 +60,7 @@ print("5. export -> out/aceitos.parquet")
 con.sql(f"COPY aceitos TO '{(OUT / 'aceitos.parquet').as_posix()}' (FORMAT parquet)")
 
 print("6. write the return file -> out/retorno.txt")
-n = remessa.write(
+n = gabarito.write(
     HERE / "retorno.yml",
     {
         "header": "SELECT current_date AS data",
@@ -70,5 +70,5 @@ n = remessa.write(
     OUT / "retorno.txt",
     con,
 )
-print(f"   {n} lines; check of the file we just wrote:", remessa.check(HERE / "retorno.yml", OUT / "retorno.txt") or "ok")
+print(f"   {n} lines; check of the file we just wrote:", gabarito.check(HERE / "retorno.yml", OUT / "retorno.txt") or "ok")
 print((OUT / "retorno.txt").read_text(encoding="latin-1"))

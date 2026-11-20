@@ -4,11 +4,11 @@ from pathlib import Path
 
 import duckdb
 
-from remessa.layout import LayoutError, _posix, check, init, rejects_sql, sql, write
+from gabarito.layout import LayoutError, _posix, check, init, rejects_sql, sql, write
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="remessa", description="YAML layout -> typed tables in DuckDB.")
+    ap = argparse.ArgumentParser(prog="gabarito", description="YAML layout -> typed tables in DuckDB.")
     ap.add_argument(
         "--init",
         metavar="SQL",
