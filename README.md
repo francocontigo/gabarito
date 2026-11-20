@@ -1,16 +1,31 @@
 # remessa
 
-Um YAML descreve o arquivo que o cliente manda. O DuckDB devolve tabelas tipadas.
+A YAML file describes the file your client sends. DuckDB gives you typed tables.
 
-Serve para arquivo posicional (largura fixa, com vários tipos de registro), CSV e Excel. Lê do disco ou do S3, sem importar nada para um banco antes.
+Works with fixed-width files (several record types per file), CSV and Excel, from disk or S3, with nothing imported into a database first. Ships with a CNAB 240 layout.
+
+[Português](README.pt-BR.md)
+
+## Why
+
+Companies that receive files from clients end up with one hand-written parser per client and a staging database full of untyped tables. The query engine was never the missing piece: DuckDB, Trino and Athena already join a file with a database. What is missing sits before the query:
+
+- DuckDB has no fixed-width reader, and nothing handles files with header, detail and trailer records in one layout.
+- A trailer that says "120 records" is usually parsed and never compared with the file.
+- A value that fails to convert is logged, or silently becomes garbage.
+
+`remessa` is the small layer that covers those three. The layout is data, the SQL is generated, and `check` tells you whether today's file matches the layout before anything is loaded.
+
+## Try it
 
 ```bash
-git clone <este repo> && pip install ./remessa
+git clone <this repo> && cd remessa
+pip install .
+remessa check  examples/cobranca.yml examples/cobranca.txt
+remessa export examples/cobranca.yml examples/cobranca.txt out/
 ```
 
-## Exemplo
-
-`layout.yml`:
+[`examples/cobranca.yml`](examples/cobranca.yml):
 
 ```yaml
 source: fixed
@@ -18,17 +33,21 @@ encoding: latin-1
 records:
   header:
     match: '^0'
+    length: 50
     fields:
       data_geracao: {pos: [2, 8], type: date, format: '%d%m%Y'}
+      carteira:     {pos: [10, 41]}
   detalhe:
     match: '^1'
     length: 50
     fields:
       nome:       {pos: [2, 20]}
-      valor:      {pos: [22, 13], type: decimal, scale: 2}
-      vencimento: {pos: [35, 8], type: date, format: '%Y%m%d'}
+      contrato:   {pos: [22, 8]}
+      valor:      {pos: [30, 13], type: decimal, scale: 2}
+      vencimento: {pos: [43, 8], type: date, format: '%Y%m%d'}
   trailer:
     match: '^9'
+    length: 50
     fields:
       qtd: {pos: [2, 6], type: int}
 expect:
@@ -40,125 +59,137 @@ expect:
 import duckdb, remessa
 
 con = duckdb.connect()
-tabelas = remessa.load("layout.yml", "arquivos/*.txt", con)
-detalhe = tabelas["detalhe"]
-con.sql("SELECT d.nome, d.valor, c.id FROM detalhe d JOIN 'clientes.csv' c USING (nome)")
+tables = remessa.load("examples/cobranca.yml", "examples/cobranca.txt", con)
+detalhe = tables["detalhe"]
+con.sql("SELECT nome, valor, vencimento FROM detalhe WHERE valor > 1000").show()
 ```
 
-## Linha de comando
+## Command line
 
 ```bash
-remessa check  layout.yml arquivo.txt        # o arquivo bate com o layout?
-remessa sql    layout.yml arquivo.txt        # imprime o SQL gerado
-remessa export layout.yml arquivo.txt saida/ # um Parquet por registro
+remessa init   file.txt                     # draft a layout from a sample of the file
+remessa check  layout.yml file.txt          # does the file match the layout?
+remessa sql    layout.yml file.txt          # print the generated SQL
+remessa export layout.yml file.txt out/     # one Parquet file per record
 ```
 
-`check` sai com código 1 e lista o que achou:
+`check` exits with 1 and lists what it found:
 
 ```
-1 linha(s) não casam com nenhum registro (linhas 5)
-detalhe: 1 linha(s) com tamanho diferente de 50 (linhas 3)
-detalhe.valor: 1 valor(es) não convertem para decimal
-expect: trailer.qtd diz 2, mas o arquivo tem 3 detalhe
+1 line(s) match no record (lines 5)
+detalhe: 1 line(s) with length other than 50 (lines 3)
+detalhe.valor: 1 value(s) do not convert to decimal
+expect: trailer.qtd says 2, but the file has 3 detalhe record(s)
 ```
 
-Em CSV e Excel ele também acusa coluna faltando e coluna a mais.
+For CSV and Excel it also reports missing and unexpected columns. An invalid layout exits with 2 and a one-line message, for example `field detalhe.valor: unknown key 'typ' (did you mean 'type'?)`.
 
-## Formato do layout
+`init` guesses record types from the first character and field boundaries from the sample. It is a starting point: names and types are yours to fill in.
 
-| Chave | Significado |
+## Layout format
+
+| Key | Meaning |
 |---|---|
-| `source` | `fixed` (padrão), `csv` ou `xlsx` |
-| `encoding` | Padrão `utf-8`. Arquivo legado costuma ser `latin-1` |
-| `records.<nome>.match` | Regex que identifica a linha do registro. Obrigatório em `fixed` |
-| `records.<nome>.length` | Tamanho esperado da linha. Opcional, usado pelo `check` |
-| `fields.<nome>.pos` | `[início, tamanho]`, início a partir de 1. Só em `fixed` |
-| `fields.<nome>.column` | Nome da coluna no arquivo. Só em `csv` e `xlsx` |
-| `fields.<nome>.type` | `str` (padrão), `int`, `decimal`, `date` |
-| `expect` | `count: <registro ou '*'>` deve ser igual a `equals: <registro>.<campo>` |
-| `delimiter`, `skip_rows` | Só em `csv`. Delimitador padrão `;` |
-| `decimal_comma` | `1.234,56` em vez de `1234.56`. Padrão: ligado em `csv`, desligado em `xlsx` |
-| `sheet` | Aba da planilha. Só em `xlsx` |
+| `source` | `fixed` (default), `csv` or `xlsx` |
+| `encoding` | Default `utf-8`. Legacy files are often `latin-1` |
+| `records.<name>.match` | Regex that identifies the record's lines. Required for `fixed` |
+| `records.<name>.length` | Expected line length. Optional, used by `check` |
+| `fields.<name>.pos` | `[start, length]`, start counted from 1. `fixed` only |
+| `fields.<name>.column` | Column name in the file. `csv` and `xlsx` only |
+| `fields.<name>.type` | `str` (default), `int`, `decimal`, `date` |
+| `expect` | `count: <record or '*'>` must equal `equals: <record>.<field>` |
+| `delimiter`, `skip_rows` | `csv` only. Default delimiter `;` |
+| `decimal_comma` | `1.234,56` instead of `1234.56`. Default: on for `csv`, off for `xlsx` |
+| `sheet` | Worksheet name. `xlsx` only |
 
-Regras dos tipos:
+How types behave:
 
-- Todo campo perde os espaços das pontas. Campo vazio vira `NULL`.
-- `str` nunca vira número, então zero à esquerda fica.
-- `decimal` em `fixed` é decimal implícito: `0000000123456` com `scale: 2` é `1234.56`.
-- `date` usa formato do `strptime`. Data toda em zeros vira `NULL`.
-- Valor que não converte vira `NULL` na tabela e aparece no `check`.
+- Every field is trimmed. An empty field becomes `NULL`.
+- `str` never becomes a number, so leading zeros survive.
+- `decimal` in a `fixed` file is an implied decimal: `0000000123456` with `scale: 2` is `1234.56`.
+- `date` takes a `strptime` format. An all-zero date becomes `NULL`.
+- A value that does not convert becomes `NULL` in the table and shows up in `check`.
 
-Cada tabela traz `_file` com o arquivo de origem (exceto `xlsx`).
+Each table has a `_file` column with the source file (except `xlsx`).
 
 ## CNAB 240
 
-Vem um layout pronto de cobrança: header e trailer de arquivo e de lote, segmentos P, Q e R (remessa), T e U (retorno).
+A ready-made layout for bank collection (cobrança): file and batch headers and trailers, segments P, Q and R (remessa), T and U (retorno).
 
 ```bash
-remessa check cnab240 retorno.ret
-remessa export cnab240 retorno.ret saida/
+remessa check  cnab240 retorno.ret
+remessa export cnab240 retorno.ret out/
 ```
 
-As posições seguem o Layout Padrão FEBRABAN 240 posições, versão 10.1. Bancos mudam detalhes como convênio e nosso número: copie `src/remessa/layouts/cnab240.yml` e ajuste. Conferido com arquivos de remessa de exemplo de oito bancos (fixtures públicas do projeto brcobranca). Nos arquivos de retorno de exemplo do mesmo projeto, o do Sicredi passa inteiro; o do Santander foge do padrão no segmento T e precisa de layout próprio.
+Positions follow the FEBRABAN standard layout, version 10.1. It was checked against sample remessa files from eight banks (public fixtures of the brcobranca project). Banks deviate from the standard: of the sample retorno files, Sicredi's passes as is and Santander's needs its own layout for segment T. Copy `src/remessa/layouts/cnab240.yml` and adjust.
 
-CNAB 400 não tem padrão único entre bancos e não vem embutido.
-
-## Levar para outro banco
-
-O DuckDB é só quem executa. Dois caminhos:
-
-**Parquet.** `remessa export` grava Parquet, que Redshift, Snowflake, BigQuery, Athena e Spark leem direto.
-
-**Direto pelo DuckDB.** Ele anexa Postgres e MySQL e grava neles:
-
-```python
-con.sql("ATTACH 'postgresql://user:senha@host/db' AS pg (TYPE postgres)")
-q = remessa.sql("layout.yml", "arquivo.txt")["detalhe"]
-con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
-```
+CNAB 400 has no single standard across banks and is not included.
 
 ## S3
 
-Caminhos `s3://` funcionam para ler, com glob, e para gravar o Parquet. As credenciais ficam na conexão do DuckDB:
+`s3://` paths work for reading, with globs, and for writing Parquet. Credentials live on the DuckDB connection:
 
 ```python
 con.sql("CREATE SECRET (TYPE s3, PROVIDER credential_chain)")
 remessa.load("layout.yml", "s3://bucket/remessas/*.txt", con)
 ```
 
-No CLI, `--init` roda um SQL na conexão antes do comando:
+On the command line, `--init` runs SQL on the connection before the command:
 
 ```bash
 remessa --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
-  export layout.yml "s3://bucket/remessas/*.txt" s3://bucket/saida
+  export layout.yml "s3://bucket/remessas/*.txt" s3://bucket/out
 ```
 
-Testado contra um S3 local (S3Mock), com chave fixa e endpoint próprio. Não testado contra a AWS.
+Tested against a local S3 (S3Mock) with a fixed key and custom endpoint. Not tested against AWS.
 
-## Arquivo grande e memória
+## Other databases
 
-O DuckDB lê em streaming e usa disco quando a memória acaba, então a lib não divide o arquivo em pedaços. Para limitar o consumo, ajuste a conexão:
+DuckDB only executes. Two ways out:
+
+**Parquet.** `remessa export` writes Parquet, which Redshift, Snowflake, BigQuery, Athena and Spark read directly.
+
+**Straight through DuckDB.** It attaches Postgres and MySQL and writes to them:
+
+```python
+con.sql("ATTACH 'postgresql://user:pass@host/db' AS pg (TYPE postgres)")
+q = remessa.sql("layout.yml", "file.txt")["detalhe"]
+con.sql(f"CREATE TABLE pg.public.detalhe AS {q}")
+```
+
+## Large files and memory
+
+No Python code touches the rows. The library builds SQL; DuckDB reads the file in streaming, in parallel, and spills to disk when memory runs out. So there is no chunking code here, and the memory ceiling is a connection setting:
 
 ```bash
-remessa --init "SET memory_limit='500MB'; SET threads=2" check layout.yml arquivo.txt
+remessa --init "SET memory_limit='500MB'; SET threads=2" check layout.yml file.txt
 ```
 
-Medido num arquivo CNAB 240 sintético de 2,08 GB (8,6 milhões de linhas), em uma máquina de 16 threads com Windows e DuckDB 1.5.6:
+`memory_limit` does not cover read buffers, which grow with the thread count. For a low ceiling, lower `threads` too.
 
-| Operação | Padrão (16 threads) | `memory_limit='500MB'`, 2 threads |
+To consume rows in Python in batches instead of all at once:
+
+```python
+cur = con.execute(remessa.sql("layout.yml", "file.txt")["detalhe"])
+while rows := cur.fetchmany(50_000):
+    ...
+```
+
+Measured on synthetic CNAB 240 files, 16-thread Windows machine, DuckDB 1.5.6:
+
+| File | Export one segment to Parquet | `check`, whole layout (216 fields) |
 |---|---|---|
-| Exportar um segmento para Parquet | 6 s, pico de 0,8 GB | 28 s, pico de 0,3 GB |
-| `check` com o layout inteiro (216 campos) | 41 s, pico de 0,9 GB | 123 s, pico de 0,2 GB |
+| 2 GB, 8.6 million lines | 6 s, 0.8 GB peak | 41 s, 0.9 GB peak |
+| 2 GB, with `memory_limit='500MB'` and 2 threads | 28 s, 0.3 GB peak | 123 s, 0.2 GB peak |
+| 7.3 GB, 30 million lines | 20 s, 1.3 GB peak | 146 s, 1.0 GB peak |
 
-O `memory_limit` não cobre os buffers de leitura, que crescem com o número de threads. Para um teto baixo de verdade, reduza `threads` junto.
+## Limits
 
-## Limites
+- Single machine. For volumes that need a cluster, export Parquet and use another engine.
+- `init` is a heuristic and there is no encoding detection.
+- Line numbers in `check` follow DuckDB's read order.
+- Tested with DuckDB 1.5 and 2.0, on Windows and Linux.
 
-- Uma máquina só. O maior arquivo medido tem 2 GB; para volumes que pedem cluster, exporte Parquet e use outro engine.
-- Testado com DuckDB 1.5 e 2.0, em Windows e Linux.
-- Sem inferência de layout e sem detecção de encoding.
-- Os números de linha do `check` seguem a ordem de leitura do DuckDB.
-
-## Licença
+## License
 
 MIT

@@ -1,7 +1,7 @@
 [project]
 name = "remessa"
 version = "0.1.0"
-description = "Layout YAML para arquivo posicional, CSV e Excel. O DuckDB entrega tabelas tipadas."
+description = "YAML layouts for fixed-width, CSV and Excel files. DuckDB gives you typed tables."
 license = "MIT"
 readme = "README.md"
 authors = [

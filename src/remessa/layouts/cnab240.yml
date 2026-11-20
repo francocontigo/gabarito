@@ -1,6 +1,6 @@
-# CNAB 240, cobrança. Posições do Layout Padrão FEBRABAN 240 posições, versão 10.1.
-# Bancos mudam detalhes (convênio, nosso número): copie este arquivo e ajuste.
-# Segmentos fora de P, Q, R, T e U aparecem no check como linhas sem registro.
+# CNAB 240, bank collection (cobranca). Positions from the FEBRABAN standard layout, 240 positions, version 10.1.
+# Banks change details (convenio, nosso numero): copy this file and adjust.
+# Segments other than P, Q, R, T and U show up in check as lines that match no record.
 source: fixed
 encoding: latin-1
 records:

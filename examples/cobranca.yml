@@ -1,0 +1,26 @@
+# Layout for examples/cobranca.txt: header, three detail lines, trailer.
+source: fixed
+encoding: latin-1
+records:
+  header:
+    match: '^0'
+    length: 50
+    fields:
+      data_geracao: {pos: [2, 8], type: date, format: '%d%m%Y'}
+      carteira:     {pos: [10, 41]}
+  detalhe:
+    match: '^1'
+    length: 50
+    fields:
+      nome:       {pos: [2, 20]}
+      contrato:   {pos: [22, 8]}
+      valor:      {pos: [30, 13], type: decimal, scale: 2}
+      vencimento: {pos: [43, 8], type: date, format: '%Y%m%d'}
+  trailer:
+    match: '^9'
+    length: 50
+    fields:
+      qtd: {pos: [2, 6], type: int}
+expect:
+  - count: detalhe
+    equals: trailer.qtd
