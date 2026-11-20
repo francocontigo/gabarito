@@ -64,7 +64,7 @@ def test_tipos(good):
         ("MARIA", Decimal("0.05"), None, None),  # data zerada e campo vazio viram NULL
     ]
     assert rels["trailer"].project("qtd").fetchall() == [(2,)]
-    assert rels["detalhe"].project("_file").fetchone()[0].endswith("arquivo.txt")
+    assert rels["detalhe"].project("_file").fetchall()[0][0].endswith("arquivo.txt")
 
 
 def test_check_ok(good):
@@ -152,7 +152,7 @@ def test_cli_check_e_export(good, tmp_path, capsys):
     assert main(["check", str(layout), str(good)]) == 0
     out = tmp_path / "out"
     assert main(["export", str(layout), str(good), str(out)]) == 0
-    n = duckdb.sql(f"SELECT count(*) FROM '{(out / 'detalhe.parquet').as_posix()}'").fetchone()[0]
+    n = duckdb.sql(f"SELECT count(*) FROM '{(out / 'detalhe.parquet').as_posix()}'").fetchall()[0][0]
     assert n == 2
 
 

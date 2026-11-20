@@ -158,7 +158,7 @@ def check(layout, path, con=None) -> list[str]:
     problems: list[str] = []
 
     def one(q):
-        return con.sql(q).fetchone()[0]
+        return con.sql(q).fetchall()[0][0]
 
     if fixed:
         # ponytail: row_number() sem ORDER BY segue a ordem do arquivo na prática
@@ -202,7 +202,7 @@ def check(layout, path, con=None) -> list[str]:
             f"count(*) FILTER (WHERE {_raw(layout, n, f)} IS NOT NULL AND {_typed(layout, _raw(layout, n, f), f)} IS NULL)"
             for n, f in typed.items()
         )
-        row = con.sql(f"SELECT {counts} FROM {lines}{_where(rec)}").fetchone()
+        row = con.sql(f"SELECT {counts} FROM {lines}{_where(rec)}").fetchall()[0]
         for (n, f), bad in zip(typed.items(), row):
             if bad:
                 problems.append(f"{rname}.{n}: {bad} valor(es) não convertem para {f['type']}")
