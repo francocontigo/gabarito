@@ -41,10 +41,7 @@ def detect_encoding(path: PathRef, con: Connection | None = None) -> str:
     for file in files:
         for enc in ENCODINGS:
             try:
-                con.execute(
-                    f"SELECT count(*) FROM read_csv({_q(file)}, sep='', quote='', escape='', header=false, "
-                    f"auto_detect=false, columns={{'line': 'VARCHAR'}}, encoding={_q(enc)})"
-                ).fetchall()
+                con.execute(f"SELECT count(*) FROM {_source({'source': 'fixed', 'encoding': enc}, file)}").fetchall()
             except duckdb.InvalidInputException:
                 continue
             found.setdefault(enc, file)
@@ -60,7 +57,7 @@ def detect_encoding(path: PathRef, con: Connection | None = None) -> str:
 
 def _source(layout: Layout, path: PathRef, con: Connection | None = None) -> str:
     """SQL for the raw relation. Everything arrives as text; types come later."""
-    src = layout.get("source", "fixed")
+    src = layout["source"]
     p = _q(_posix(path))
     enc = layout.get("encoding", "utf-8")
     if enc == "auto" and src != "xlsx":
@@ -83,7 +80,7 @@ def _source(layout: Layout, path: PathRef, con: Connection | None = None) -> str
 
 def _raw(layout: Layout, fname: str, f: Layout) -> str:
     """Field value as text: trimmed, empty becomes NULL."""
-    if layout.get("source", "fixed") == "fixed":
+    if layout["source"] == "fixed":
         start, length = f["pos"]
         cut = f"substr(line, {int(start)}, {int(length)})"
     else:
@@ -101,7 +98,7 @@ def _typed(layout: Layout, raw: str, f: Layout) -> str:
         return f"TRY_CAST({raw} AS BIGINT)"
     if t == "decimal":
         scale = int(f.get("scale", 2))
-        if layout.get("source", "fixed") == "fixed":
+        if layout["source"] == "fixed":
             # Implied decimal: '0000012345' with scale 2 is 123.45. DECIMAL multiplication is exact.
             unit = "0." + "0" * (scale - 1) + "1" if scale else "1"
             return f"CAST(TRY_CAST({raw} AS DECIMAL(18,0)) * {unit} AS DECIMAL(18,{scale}))"
@@ -114,5 +111,10 @@ def _typed(layout: Layout, raw: str, f: Layout) -> str:
     return raw
 
 
+def _is(rec: Layout) -> str:
+    """SQL condition: the line belongs to this record."""
+    return f"regexp_matches(line, {_q(rec['match'])})" if rec.get("match") else "TRUE"
+
+
 def _where(rec: Layout) -> str:
-    return f" WHERE regexp_matches(line, {_q(rec['match'])})" if rec.get("match") else ""
+    return f" WHERE {_is(rec)}" if rec.get("match") else ""

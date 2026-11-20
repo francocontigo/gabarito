@@ -1,11 +1,36 @@
-"""Does the file match the layout? Counts in `check`, the offending lines in `rejects`."""
+"""Does the file match the layout? Counts in `check`, the offending lines in `rejects_sql`."""
 
 from __future__ import annotations
 
 import duckdb
 
-from gabarito._sql import _q, _raw, _source, _typed
+from gabarito._sql import _is, _q, _raw, _source, _typed
 from gabarito.layout import Connection, Layout, LayoutRef, PathRef, load_layout
+
+Key = tuple[str, ...]
+
+
+def _breaks(layout: Layout) -> dict[Key, tuple[str, str]]:
+    """Each way a line can break the layout: key -> (SQL condition, SQL text of the reason)."""
+    fixed = layout["source"] == "fixed"
+    records = layout["records"]
+    out: dict[Key, tuple[str, str]] = {}
+    if fixed:
+        out[("unmatched",)] = ("NOT (" + " OR ".join(map(_is, records.values())) + ")", "'matches no record'")
+    for rname, rec in records.items():
+        if fixed and rec.get("length"):
+            out[("len", rname)] = (
+                f"{_is(rec)} AND length(line) <> {int(rec['length'])}",
+                f"{_q(rname + ': length ')} || length(line) || {_q(', expected ' + str(rec['length']))}",
+            )
+        for n, f in rec["fields"].items():
+            if f.get("type", "str") != "str":
+                raw = _raw(layout, n, f)
+                out[("bad", rname, n)] = (
+                    f"{_is(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL",
+                    _q(f"{rname}.{n}: not a valid {f['type']}"),
+                )
+    return out
 
 
 def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> list[str]:
@@ -13,14 +38,13 @@ def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> li
     layout = load_layout(layout)
     con = con or duckdb.connect()
     src = _source(layout, path, con)
-    fixed = layout.get("source", "fixed") == "fixed"
     records = layout["records"]
     problems: list[str] = []
 
-    if not fixed:
+    if layout["source"] != "fixed":
         have = {r[0].lower() for r in con.sql(f"DESCRIBE SELECT * FROM {src}").fetchall()} - {"filename"}
         (rec,) = records.values()
-        want = {str((f or {}).get("column", n)).lower() for n, f in rec["fields"].items()}
+        want = {str(f.get("column", n)).lower() for n, f in rec["fields"].items()}
         if want - have:
             problems.append(f"missing columns: {', '.join(sorted(want - have))}")
         if have - want:
@@ -28,30 +52,16 @@ def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> li
         if want - have:
             return problems  # without the columns the checks below cannot run
 
-    def is_(rec: Layout) -> str:
-        return f"regexp_matches(line, {_q(rec['match'])})" if rec.get("match") else "TRUE"
-
     # Every count comes out of a single pass over the file.
-    aggs: dict[tuple[str, ...], str] = {("total",): "count(*)"}
-    if fixed:
-        unmatched = "NOT (" + " OR ".join(is_(r) for r in records.values()) + ")"
-        aggs[("unmatched",)] = f"count(*) FILTER (WHERE {unmatched})"
-    for rname, rec in records.items():
-        aggs[("n", rname)] = f"count(*) FILTER (WHERE {is_(rec)})"
-        if fixed and rec.get("length"):
-            aggs[("len", rname)] = f"count(*) FILTER (WHERE {is_(rec)} AND length(line) <> {int(rec['length'])})"
-        for n, f in rec["fields"].items():
-            f = f or {}
-            if f.get("type", "str") != "str":
-                raw = _raw(layout, n, f)
-                aggs[("bad", rname, n)] = (
-                    f"count(*) FILTER (WHERE {is_(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL)"
-                )
+    breaks = _breaks(layout)
+    aggs: dict[Key, str] = {("total",): "count(*)"}
+    aggs |= {("n", rname): f"count(*) FILTER (WHERE {_is(rec)})" for rname, rec in records.items()}
+    aggs |= {key: f"count(*) FILTER (WHERE {cond})" for key, (cond, _) in breaks.items()}
 
     def field_of(ref: str) -> tuple[str, str]:
         rname, fname = ref.split(".")
-        f = records[rname]["fields"][fname] or {}
-        return _typed(layout, _raw(layout, fname, f), f), is_(records[rname])
+        f = records[rname]["fields"][fname]
+        return _typed(layout, _raw(layout, fname, f), f), _is(records[rname])
 
     for rule in layout.get("expect") or []:
         expr, cond = field_of(rule["equals"])
@@ -69,19 +79,19 @@ def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> li
         ).fetchall()
         return ", ".join(str(r[0]) for r in rows)
 
-    if got.get(("unmatched",)):
-        problems.append(f"{got[('unmatched',)]} line(s) match no record (lines {lines_where(unmatched)})")
-    for rname, rec in records.items():
-        if got.get(("len", rname)):
-            cond = f"{is_(rec)} AND length(line) <> {int(rec['length'])}"
-            problems.append(
-                f"{rname}: {got[('len', rname)]} line(s) with length other than {rec['length']} "
-                f"(lines {lines_where(cond)})"
-            )
-    for rname, rec in records.items():
-        for n, f in rec["fields"].items():
-            if got.get(("bad", rname, n)):
-                problems.append(f"{rname}.{n}: {got[('bad', rname, n)]} value(s) do not convert to {f['type']}")
+    for kind in ("unmatched", "len", "bad"):  # reported in this order
+        for key, (cond, _) in breaks.items():
+            n = got[key]
+            if key[0] != kind or not n:
+                continue
+            if kind == "unmatched":
+                problems.append(f"{n} line(s) match no record (lines {lines_where(cond)})")
+            elif kind == "len":
+                length = records[key[1]]["length"]
+                problems.append(f"{key[1]}: {n} line(s) with length other than {length} (lines {lines_where(cond)})")
+            else:
+                type_ = records[key[1]]["fields"][key[2]]["type"]
+                problems.append(f"{key[1]}.{key[2]}: {n} value(s) do not convert to {type_}")
     for rule in layout.get("expect") or []:
         rname = rule["equals"].split(".")[0]
         said = got[("val", rule["equals"])]
@@ -101,43 +111,17 @@ def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> li
 
 
 def rejects_sql(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> str:
-    """SELECT returning the lines that break the layout, each with the reasons."""
+    """SELECT returning the lines that break the layout, each with the reasons.
+
+    Run it with `con.sql(...)`, or wrap it in a COPY to save the lines.
+    """
     layout = load_layout(layout)
     src = _source(layout, path, con)
-    fixed = layout.get("source", "fixed") == "fixed"
-    records = layout["records"]
-
-    def is_(rec: Layout) -> str:
-        return f"regexp_matches(line, {_q(rec['match'])})" if rec.get("match") else "TRUE"
-
-    cases = []
-    if fixed:
-        unmatched = "NOT (" + " OR ".join(is_(r) for r in records.values()) + ")"
-        cases.append(f"CASE WHEN {unmatched} THEN 'matches no record' END")
-    for rname, rec in records.items():
-        if fixed and rec.get("length"):
-            cases.append(
-                f"CASE WHEN {is_(rec)} AND length(line) <> {int(rec['length'])} "
-                f"THEN {_q(rname + ': length ')} || length(line) || {_q(', expected ' + str(rec['length']))} END"
-            )
-        for n, f in rec["fields"].items():
-            f = f or {}
-            if f.get("type", "str") != "str":
-                raw = _raw(layout, n, f)
-                cases.append(
-                    f"CASE WHEN {is_(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL "
-                    f"THEN {_q(f'{rname}.{n}: not a valid ' + f['type'])} END"
-                )
+    cases = [f"CASE WHEN {cond} THEN {reason} END" for cond, reason in _breaks(layout).values()]
     reasons = f"concat_ws('; ', {', '.join(cases)})" if cases else "''"
-    if fixed:
+    if layout["source"] == "fixed":
         # ponytail: same line-number caveat as check(); with a glob the numbering runs across files.
         inner = f"SELECT filename AS _file, row_number() OVER () AS _line, {reasons} AS reasons, line FROM {src}"
     else:
         inner = f"SELECT {reasons} AS reasons, * FROM {src}"
     return f"SELECT * FROM ({inner}) WHERE reasons <> ''"
-
-
-def rejects(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> duckdb.DuckDBPyRelation:
-    """Lazy relation with the lines that break the layout (see rejects_sql)."""
-    con = con or duckdb.connect()
-    return con.sql(rejects_sql(layout, path, con))

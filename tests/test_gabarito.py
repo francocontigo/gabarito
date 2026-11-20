@@ -251,7 +251,7 @@ def test_rejects(tmp_path):
             "9000003",
         ],
     )
-    rows = gabarito.rejects(LAYOUT, p).project("_line, reasons, line").fetchall()
+    rows = duckdb.sql(gabarito.rejects_sql(LAYOUT, p)).project("_line, reasons, line").fetchall()
     assert [(n, why) for n, why, _ in rows] == [
         (3, "detalhe: length 47, expected 50"),
         (4, "detalhe.valor: not a valid decimal; detalhe.vencimento: not a valid date"),
@@ -263,7 +263,7 @@ def test_rejects(tmp_path):
 def test_rejects_csv(tmp_path):
     p = tmp_path / "d.csv"
     p.write_text("Contrato;Valor;Vencimento\n1;1,00;15/03/2026\n2;abc;99/99/2026\n", encoding="utf-8")
-    rows = gabarito.rejects(CSV_LAYOUT, p).project("reasons, Contrato").fetchall()
+    rows = duckdb.sql(gabarito.rejects_sql(CSV_LAYOUT, p)).project("reasons, Contrato").fetchall()
     assert rows == [("dividas.valor: not a valid decimal; dividas.vencimento: not a valid date", "2")]
 
 

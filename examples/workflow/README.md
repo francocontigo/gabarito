@@ -13,7 +13,7 @@ docker compose down
 | Step | What happens | Call |
 |---|---|---|
 | 1 | Compare the file with the layout: counts, sums, line lengths, types | `gabarito.check` |
-| 2 | Set aside the lines that break it, with the reason | `gabarito.rejects` |
+| 2 | Set aside the lines that break it, with the reason | `gabarito.rejects_sql` |
 | 3 | Load the typed rows into Postgres | `gabarito.sql` + DuckDB `ATTACH` |
 | 4 | Join them with a table that already lives in the database | `postgres_query` |
 | 5 | Export the result to Parquet | DuckDB `COPY` |

@@ -111,7 +111,3 @@ def _run(a: argparse.Namespace) -> int:
         con.sql(f"COPY ({q}) TO '{target}' (FORMAT parquet)")
         print(target)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

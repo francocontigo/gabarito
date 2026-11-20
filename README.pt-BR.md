@@ -160,7 +160,7 @@ Cada tabela traz `_file` com o arquivo de origem (exceto `xlsx`).
 O `check` conta os problemas; o `rejects` entrega as linhas, para o pipeline carregar as boas e devolver as ruins.
 
 ```python
-gabarito.rejects("layout.yml", "arquivo.txt", con)  # _file, _line, reasons, line
+con.sql(gabarito.rejects_sql("layout.yml", "arquivo.txt"))  # _file, _line, reasons, line
 ```
 
 ```

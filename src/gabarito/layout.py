@@ -108,4 +108,6 @@ def _validate(layout: object) -> Layout:
                 rname, _, fname = str(rule[key]).partition(".")
                 if rname not in records or fname not in records[rname]["fields"]:
                     raise LayoutError(f"expect: {key} must be <record>.<field>, got {rule[key]!r}")
-    return layout
+    # Defaults are filled in here, once: the rest of the code reads layout['source'] and a dict per field.
+    fill = {r: {**rec, "fields": {n: f or {} for n, f in rec["fields"].items()}} for r, rec in records.items()}
+    return {**layout, "source": src, "records": fill}

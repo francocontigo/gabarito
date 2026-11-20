@@ -188,7 +188,7 @@ Each table has a `_file` column with the source file (except `xlsx`).
 `check` counts problems; `rejects` gives you the lines, so a pipeline can load the good ones and send the bad ones back.
 
 ```python
-gabarito.rejects("layout.yml", "file.txt", con)  # _file, _line, reasons, line
+con.sql(gabarito.rejects_sql("layout.yml", "file.txt"))  # _file, _line, reasons, line
 ```
 
 ```

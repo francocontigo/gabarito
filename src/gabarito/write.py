@@ -25,7 +25,7 @@ def write(
     `_order` column: they are then merged by it.
     """
     layout = load_layout(layout)
-    if layout.get("source", "fixed") != "fixed":
+    if layout["source"] != "fixed":
         raise LayoutError("write only produces fixed-width files; for CSV and Excel use DuckDB's COPY")
     if layout.get("encoding") == "auto":
         raise LayoutError("write: `encoding: auto` only applies to reading; name the encoding to write")

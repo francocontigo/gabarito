@@ -40,7 +40,7 @@ for problem in gabarito.check(HERE / "entrada.yml", HERE / "entrada.txt", con) o
     print("  ", problem)
 
 print("2. rejects -> out/rejeitadas.csv")
-rejected = gabarito.rejects(HERE / "entrada.yml", HERE / "entrada.txt", con)
+rejected = con.sql(gabarito.rejects_sql(HERE / "entrada.yml", HERE / "entrada.txt"))
 con.sql(f"COPY rejected TO '{(OUT / 'rejeitadas.csv').as_posix()}'")
 for line, reasons in rejected.project("_line, reasons").fetchall():
     print(f"   line {line}: {reasons}")
