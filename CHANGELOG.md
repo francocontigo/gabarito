@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-11-20)
 
 - `encoding: auto` and `detect_encoding()`: utf-8, latin-1 (ISO-8859-1) or CP1252, by decoding the whole file.
 - dbt: `gabarito.dbt` is a dbt-duckdb plugin that reads a source through a layout.
@@ -9,7 +9,7 @@
 - `write`: a line break inside a text value becomes a space instead of splitting the line.
 - `write`: text longer than its field raises an error instead of being cut (breaking). Cut it in the query with `left()`.
 - `write` streams each record straight from its query; only records interleaved by `_order` are sorted. It used to sort every line, and ran out of memory on 30 million lines under a 2 GB limit.
-- Removed `rejects()`: it was `con.sql(rejects_sql(...))`. Use that.
+- Removed `rejects()` (breaking): it was `con.sql(rejects_sql(...))`. Use that.
 
 ## 0.2.0
 

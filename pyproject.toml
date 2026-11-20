@@ -1,6 +1,6 @@
 [project]
 name = "gabarito"
-version = "0.2.0"
+version = "0.3.0"
 description = "YAML layouts for fixed-width, CSV and Excel files. DuckDB gives you typed tables."
 license = "MIT"
 keywords = ["fixed-width", "cnab", "duckdb", "etl", "data-validation", "csv", "parquet"]
