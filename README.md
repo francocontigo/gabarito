@@ -218,7 +218,9 @@ gabarito.write(
 - Text is padded with spaces, and a line break inside it becomes a space; numbers are zero-padded; decimals lose the point (`scale`); dates use the field's `format`; `NULL` becomes blanks or zeros.
 - A value that does not fit its field (text too long, number too large or negative) raises an error instead of being cut. To cut on purpose, do it in the query: `left(nome, 40) AS nome`.
 - A field with no column takes its `value` (record type codes, for example), or blanks.
-- Records come out in layout order. To interleave them (CNAB: each segment P followed by its Q), add an `_order` column to those queries.
+- Records come out in layout order, each in the order of its query, streamed to the file: 30 million lines (2 GB) took 26 s with a peak of 0.7 GB of memory, and the same under `memory_limit = '2GB'`.
+- To interleave records (CNAB: each segment P followed by its Q), add an `_order` column to those queries. Interleaving sorts those lines, so it needs memory or temp space for them.
+- A layout that was only written to read may leave positions out. To write a file that passes its own `check`, every position that matters needs a field, including the record-type character: `tipo: {pos: [1, 1], value: '1'}`.
 - Lines end in CRLF by default (`newline=` changes it). Output is a local file.
 
 ## CNAB layouts
@@ -305,7 +307,7 @@ DuckDB only executes. Two ways out:
 
 **Parquet.** `gabarito export` writes Parquet, which Redshift, Snowflake, BigQuery, Athena and Spark read directly.
 
-**Straight through DuckDB.** It attaches Postgres and MySQL and writes to them (Postgres is exercised by [`examples/workflow`](examples/workflow); MySQL was not tested):
+**Straight through DuckDB.** It attaches Postgres and MySQL and writes to them (Postgres is exercised by [`examples/workflow`](examples/workflow); MySQL 8.4 was tested by hand: load, read back, and `write` from a `mysql_query(...)`):
 
 ```python
 con.sql("ATTACH 'postgresql://user:pass@host/db' AS pg (TYPE postgres)")

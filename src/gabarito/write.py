@@ -38,7 +38,9 @@ def write(
     names = list(records)
     ordered = [r for r in names if r in tables and "_order" in _columns(con, tables[r])]
     first, last = (names.index(ordered[0]), names.index(ordered[-1])) if ordered else (0, -1)
-    parts: list[str] = []
+    selects: list[str] = []  # run one after the other, each streamed to the file
+    merged: list[str] = []  # the records interleaved by _order, and any record between them
+    merge_at = 0
     guards: dict[str, tuple[str, dict[str, str]]] = {}
     for i, (rname, rec) in enumerate(records.items()):
         if rname not in tables:
@@ -73,12 +75,18 @@ def write(
             at = start + length
         if rec.get("length", at - 1) > at - 1:
             pieces.append(f"repeat(' ', {rec['length'] - at + 1})")
-        stage = 1 if rname in ordered else 0 if i < first else 2 if i > last else 1
-        order = "_order" if rname in ordered else "NULL"
-        parts.append(
-            f"SELECT {stage} AS s, {order} AS o, {i} AS r, row_number() OVER () AS n, "
-            f"{' || '.join(pieces)} AS line FROM ({query})"
-        )
+        line = " || ".join(pieces)
+        if first <= i <= last:
+            order = "_order" if rname in ordered else "NULL"
+            merge_at = merge_at if merged else len(selects)
+            merged.append(f"SELECT {order} AS o, {i} AS r, row_number() OVER () AS n, {line} AS line FROM ({query})")
+        else:
+            # ponytail: no ORDER BY here, the lines come out in the order of the query
+            # (preserve_insertion_order), and nothing is sorted or held in memory.
+            selects.append(f"SELECT {line} AS line FROM ({query})")
+    if merged:
+        # Interleaving is a sort over all those lines: it needs memory, or temp space, for them.
+        selects.insert(merge_at, f"SELECT line FROM ({' UNION ALL '.join(merged)}) ORDER BY o, r, n")
 
     # A value that does not fit its field would be silently cut by the padding: refuse instead.
     # One pass per record, with a count per field.
@@ -94,12 +102,13 @@ def write(
                     "(too long, or a negative number); shorten them in the query, e.g. left(col, n)"
                 )
 
-    cur = con.execute(f"SELECT line FROM ({' UNION ALL '.join(parts)}) ORDER BY s, o, r, n") if parts else None
     total = 0
     with open(path, "w", encoding=layout.get("encoding", "utf-8"), newline="") as out:
-        while cur and (rows := cur.fetchmany(50_000)):  # streamed: memory stays flat on large tables
-            out.write("".join(r[0] + newline for r in rows))
-            total += len(rows)
+        for select in selects:
+            cur = con.execute(select)
+            while rows := cur.fetchmany(50_000):
+                out.write("".join(r[0] + newline for r in rows))
+                total += len(rows)
     return total
 
 

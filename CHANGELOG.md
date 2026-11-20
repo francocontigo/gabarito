@@ -8,6 +8,7 @@
 - `sql()` and `rejects_sql()` take an optional connection, used by `encoding: auto`.
 - `write`: a line break inside a text value becomes a space instead of splitting the line.
 - `write`: text longer than its field raises an error instead of being cut (breaking). Cut it in the query with `left()`.
+- `write` streams each record straight from its query; only records interleaved by `_order` are sorted. It used to sort every line, and ran out of memory on 30 million lines under a 2 GB limit.
 - Removed `rejects()`: it was `con.sql(rejects_sql(...))`. Use that.
 
 ## 0.2.0
