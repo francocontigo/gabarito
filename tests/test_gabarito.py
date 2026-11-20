@@ -509,7 +509,8 @@ def test_write_long_text_is_an_error(tmp_path):
 
 
 def test_dbt_plugin(tmp_path, monkeypatch):
-    from dbt.cli.main import dbtRunner
+    # dbt is not a dev dependency: CI runs this in its own job, with `uv run --with dbt-duckdb`.
+    runner = pytest.importorskip("dbt.cli.main").dbtRunner
 
     ex = Path(__file__).parent.parent / "examples"
     for name in ("cobranca.txt", "cobranca.yml"):
@@ -523,21 +524,21 @@ def test_dbt_plugin(tmp_path, monkeypatch):
     (tmp_path / "models" / "sources.yml").write_text(
         "sources:\n  - name: client\n"
         "    meta: {plugin: gabarito, layout: cobranca.yml, path: cobranca.txt, check: true}\n"
-        "    tables:\n      - name: detalhe\n      - name: fim\n        meta: {record: trailer}\n"
+        "    tables:\n      - name: detalhe\n      - name: fim\n        identifier: trailer\n"
     )
     (tmp_path / "models" / "total.sql").write_text(
-        "SELECT count(*) AS n, sum(valor) AS total, (SELECT qtd FROM {{ source('client', 'fim') }}) AS said "
+        "SELECT count(*) AS n, (SELECT qtd FROM {{ source('client', 'fim') }}) AS said "
         "FROM {{ source('client', 'detalhe') }}"
     )
     monkeypatch.chdir(tmp_path)
     run = ["run", "--profiles-dir", ".", "--quiet", "--threads", "4"]
-    assert dbtRunner().invoke(run).success
+    assert runner().invoke(run).success
     with duckdb.connect("demo.duckdb") as con:
         assert con.sql("SELECT n, said FROM total").fetchall() == [(3, 3)]
 
     # check: true stops the run when the file breaks the layout (here the trailer count).
     text = (tmp_path / "cobranca.txt").read_text(encoding="latin-1")
     (tmp_path / "cobranca.txt").write_text(text.replace("9000003", "9000007"), encoding="latin-1")
-    result = dbtRunner().invoke(run)
+    result = runner().invoke(run)
     assert not result.success
     assert "trailer.qtd says 7" in str([r.message for r in result.result.results])

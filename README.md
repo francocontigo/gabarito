@@ -288,7 +288,7 @@ sources:
     tables:
       - name: detalhe            # a record of the layout
       - name: fim
-        meta: {record: trailer}  # when the table and the record have different names
+        identifier: trailer      # when the table and the record have different names
 ```
 
 ```sql

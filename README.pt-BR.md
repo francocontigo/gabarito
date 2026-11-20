@@ -260,7 +260,7 @@ sources:
     tables:
       - name: detalhe            # um registro do layout
       - name: fim
-        meta: {record: trailer}  # quando a tabela e o registro têm nomes diferentes
+        identifier: trailer      # quando a tabela e o registro têm nomes diferentes
 ```
 
 ```sql

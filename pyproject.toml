@@ -36,7 +36,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "dbt-duckdb>=1.11.1",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
@@ -57,3 +56,10 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "ANN"]
 [tool.mypy]
 strict = true
 files = ["src"]
+
+[[tool.mypy.overrides]]
+module = "dbt.*"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+omit = ["src/gabarito/dbt.py"]  # needs dbt-duckdb: tested by the dbt job in CI
