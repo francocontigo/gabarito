@@ -5,6 +5,7 @@
 - `encoding: auto` and `detect_encoding()`: utf-8, latin-1 (ISO-8859-1) or CP1252, by decoding the whole file.
 - `init` detects the encoding instead of assuming latin-1.
 - `sql()` and `rejects_sql()` take an optional connection, used by `encoding: auto`.
+- `write`: a line break inside a text value becomes a space instead of splitting the line.
 - Removed `rejects()`: it was `con.sql(rejects_sql(...))`. Use that.
 
 ## 0.2.0

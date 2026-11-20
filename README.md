@@ -215,7 +215,7 @@ gabarito.write(
 )
 ```
 
-- Text is padded with spaces and cut to the field; numbers are zero-padded; decimals lose the point (`scale`); dates use the field's `format`; `NULL` becomes blanks or zeros.
+- Text is padded with spaces and cut to the field, and a line break inside it becomes a space; numbers are zero-padded; decimals lose the point (`scale`); dates use the field's `format`; `NULL` becomes blanks or zeros.
 - A number that does not fit its field, or is negative, raises an error instead of being cut.
 - A field with no column takes its `value` (record type codes, for example), or blanks.
 - Records come out in layout order. To interleave them (CNAB: each segment P followed by its Q), add an `_order` column to those queries.

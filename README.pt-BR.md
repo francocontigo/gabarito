@@ -187,7 +187,7 @@ gabarito.write(
 )
 ```
 
-- Texto é preenchido com espaços e cortado no tamanho do campo; número é preenchido com zeros; decimal perde a vírgula (`scale`); data usa o `format` do campo; `NULL` vira brancos ou zeros.
+- Texto é preenchido com espaços e cortado no tamanho do campo, e quebra de linha dentro dele vira espaço; número é preenchido com zeros; decimal perde a vírgula (`scale`); data usa o `format` do campo; `NULL` vira brancos ou zeros.
 - Número que não cabe no campo, ou negativo, gera erro em vez de ser cortado.
 - Campo sem coluna usa o `value` (código do tipo de registro, por exemplo), ou brancos.
 - Os registros saem na ordem do layout. Para intercalar (CNAB: cada segmento P seguido do seu Q), inclua uma coluna `_order` nessas consultas.

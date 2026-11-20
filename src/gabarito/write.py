@@ -55,7 +55,9 @@ def write(
             x = _id(n) if n.lower() in cols else _q(f["value"]) if "value" in f else "NULL"
             t = f.get("type", "str")
             if t == "str":
-                pieces.append(f"rpad(left(coalesce(CAST({x} AS VARCHAR), ''), {length}), {length}, ' ')")
+                # A line break inside a value would split the record in two: it becomes a space.
+                text = f"regexp_replace(coalesce(CAST({x} AS VARCHAR), ''), '[\\r\\n]', ' ', 'g')"
+                pieces.append(f"rpad(left({text}, {length}), {length}, ' ')")
             elif t == "date":
                 text = f"strftime(CAST({x} AS DATE), {_q(f['format'])})"
                 pieces.append(f"coalesce({text}, repeat('0', {length}))")

@@ -490,3 +490,10 @@ def test_encoding_cp1252(tmp_path):
     p = tmp_path / "win.txt"
     p.write_bytes("1JOSÉ € 10\n".encode("cp1252"))  # 0x80 is not latin-1 for DuckDB
     assert gabarito.detect_encoding(p, con) == "CP1252"
+
+
+def test_write_line_break_in_text(tmp_path):
+    out = tmp_path / "out.txt"
+    query = "SELECT 'ANA' || chr(13) || chr(10) || 'B' AS nome, 1.5 AS valor"
+    assert gabarito.write(WRITE_LAYOUT, {"detalhe": query}, out) == 1
+    assert out.read_bytes() == b"1ANA  B    00000015000000000  \r\n"
