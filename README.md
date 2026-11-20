@@ -92,14 +92,14 @@ Cada tabela traz `_file` com o arquivo de origem (exceto `xlsx`).
 
 ## CNAB 240
 
-Vem um layout pronto de cobrança: header e trailer de arquivo e de lote, segmentos P e Q (remessa), T e U (retorno).
+Vem um layout pronto de cobrança: header e trailer de arquivo e de lote, segmentos P, Q e R (remessa), T e U (retorno).
 
 ```bash
 remessa check cnab240 retorno.ret
 remessa export cnab240 retorno.ret saida/
 ```
 
-As posições seguem o Layout Padrão FEBRABAN 240 posições, versão 10.1. Bancos mudam detalhes como convênio e nosso número: copie `src/remessa/layouts/cnab240.yml` e ajuste. Não foi testado com arquivo real de banco.
+As posições seguem o Layout Padrão FEBRABAN 240 posições, versão 10.1. Bancos mudam detalhes como convênio e nosso número: copie `src/remessa/layouts/cnab240.yml` e ajuste. Conferido com arquivos de remessa de exemplo de oito bancos (fixtures públicas do projeto brcobranca). Retorno (T e U) só foi testado com arquivo sintético.
 
 CNAB 400 não tem padrão único entre bancos e não vem embutido.
 

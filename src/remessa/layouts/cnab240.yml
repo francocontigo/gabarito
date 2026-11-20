@@ -1,6 +1,6 @@
 # CNAB 240, cobrança. Posições do Layout Padrão FEBRABAN 240 posições, versão 10.1.
 # Bancos mudam detalhes (convênio, nosso número): copie este arquivo e ajuste.
-# Segmentos fora de P, Q, T e U aparecem no check como linhas sem registro.
+# Segmentos fora de P, Q, R, T e U aparecem no check como linhas sem registro.
 source: fixed
 encoding: latin-1
 records:
@@ -122,6 +122,36 @@ records:
       avalista_nome: {pos: [170, 40]}
       banco_correspondente: {pos: [210, 3]}
       nosso_numero_banco_correspondente: {pos: [213, 20]}
+  segmento_r:
+    match: '^.{7}3.{5}R'
+    length: 240
+    fields:
+      banco: {pos: [1, 3]}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1]}
+      sequencial_no_lote: {pos: [9, 5], type: int}
+      segmento: {pos: [14, 1]}
+      codigo_movimento: {pos: [16, 2]}
+      codigo_desconto_2: {pos: [18, 1]}
+      data_desconto_2: {pos: [19, 8], type: date, format: '%d%m%Y'}
+      desconto_2: {pos: [27, 15], type: decimal, scale: 2}
+      codigo_desconto_3: {pos: [42, 1]}
+      data_desconto_3: {pos: [43, 8], type: date, format: '%d%m%Y'}
+      desconto_3: {pos: [51, 15], type: decimal, scale: 2}
+      codigo_multa: {pos: [66, 1]}
+      data_multa: {pos: [67, 8], type: date, format: '%d%m%Y'}
+      multa: {pos: [75, 15], type: decimal, scale: 2}
+      informacao_ao_pagador: {pos: [90, 10]}
+      mensagem_3: {pos: [100, 40]}
+      mensagem_4: {pos: [140, 40]}
+      pagador_ocorrencia_codigo: {pos: [200, 8]}
+      debito_banco: {pos: [208, 3]}
+      debito_agencia: {pos: [211, 5]}
+      debito_agencia_dv: {pos: [216, 1]}
+      debito_conta: {pos: [217, 12]}
+      debito_conta_dv: {pos: [229, 1]}
+      debito_agencia_conta_dv: {pos: [230, 1]}
+      aviso_debito_automatico: {pos: [231, 1]}
   segmento_t:
     match: '^.{7}3.{5}T'
     length: 240
