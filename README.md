@@ -23,7 +23,7 @@ Companies that receive files from clients end up with one hand-written parser pe
 ## Try it
 
 ```bash
-git clone <this repo> && cd gabarito
+git clone https://github.com/francocontigo/gabarito && cd gabarito
 pip install .
 gabarito check  examples/cobranca.yml examples/cobranca.txt
 gabarito export examples/cobranca.yml examples/cobranca.txt out/

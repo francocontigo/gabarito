@@ -23,7 +23,7 @@ O `gabarito` é a camada pequena que cobre esses três pontos. O layout é dado,
 ## Para testar
 
 ```bash
-git clone <este repo> && cd gabarito
+git clone https://github.com/francocontigo/gabarito && cd gabarito
 pip install .
 gabarito check  examples/cobranca.yml examples/cobranca.txt
 gabarito export examples/cobranca.yml examples/cobranca.txt saida/

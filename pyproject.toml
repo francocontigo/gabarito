@@ -22,6 +22,11 @@ dependencies = [
     "pyyaml>=6.0.3",
 ]
 
+[project.urls]
+Repository = "https://github.com/francocontigo/gabarito"
+Issues = "https://github.com/francocontigo/gabarito/issues"
+Changelog = "https://github.com/francocontigo/gabarito/blob/main/CHANGELOG.md"
+
 [project.scripts]
 gabarito = "gabarito.cli:main"
 
