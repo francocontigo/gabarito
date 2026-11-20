@@ -225,6 +225,155 @@ def test_builtin_cnab240(tmp_path):
     assert t["trailer_arquivo"].project("qtd_lotes, qtd_registros").fetchall() == [(1, 6)]
 
 
+def test_expect_sum(tmp_path):
+    layout = {
+        "records": {
+            "d": {"match": "^1", "fields": {"valor": {"pos": [2, 6], "type": "decimal", "scale": 2}}},
+            "t": {"match": "^9", "fields": {"total": {"pos": [2, 8], "type": "decimal", "scale": 2}}},
+        },
+        "expect": [{"sum": "d.valor", "equals": "t.total"}],
+    }
+    assert remessa.check(layout, write(tmp_path, ["1001050", "1000250", "900001300"])) == []
+    assert remessa.check(layout, write(tmp_path, ["1001050", "1000250", "900009999"])) == [
+        "expect: t.total says 99.99, but d.valor adds up to 13.00"
+    ]
+
+
+def test_rejects(tmp_path):
+    p = write(
+        tmp_path,
+        [
+            "001022026",
+            detalhe("JOAO", "100", "20260315"),
+            detalhe("CURTA", "100", "20260315")[:-3],
+            detalhe("RUIM", "12X45", "20261345"),
+            "7 unknown record type",
+            "9000003",
+        ],
+    )
+    rows = remessa.rejects(LAYOUT, p).project("_line, reasons, line").fetchall()
+    assert [(n, why) for n, why, _ in rows] == [
+        (3, "detalhe: length 47, expected 50"),
+        (4, "detalhe.valor: not a valid decimal; detalhe.vencimento: not a valid date"),
+        (5, "matches no record"),
+    ]
+    assert rows[2][2] == "7 unknown record type"  # the original line comes along
+
+
+def test_rejects_csv(tmp_path):
+    p = tmp_path / "d.csv"
+    p.write_text("Contrato;Valor;Vencimento\n1;1,00;15/03/2026\n2;abc;99/99/2026\n", encoding="utf-8")
+    rows = remessa.rejects(CSV_LAYOUT, p).project("reasons, Contrato").fetchall()
+    assert rows == [("dividas.valor: not a valid decimal; dividas.vencimento: not a valid date", "2")]
+
+
+WRITE_LAYOUT = {
+    "encoding": "latin-1",
+    "records": {
+        "header": {
+            "match": "^0",
+            "length": 30,
+            "fields": {
+                "tipo": {"pos": [1, 1], "value": "0"},
+                "data": {"pos": [2, 8], "type": "date", "format": "%d%m%Y"},
+            },
+        },
+        "detalhe": {
+            "match": "^1",
+            "length": 30,
+            "fields": {
+                "tipo": {"pos": [1, 1], "value": "1"},
+                "nome": {"pos": [2, 10]},
+                "valor": {"pos": [12, 9], "type": "decimal", "scale": 2},
+                "vencimento": {"pos": [21, 8], "type": "date", "format": "%Y%m%d"},
+            },
+        },
+        "trailer": {
+            "match": "^9",
+            "length": 30,
+            "fields": {"tipo": {"pos": [1, 1], "value": "9"}, "qtd": {"pos": [2, 6], "type": "int"}},
+        },
+    },
+    "expect": [{"count": "detalhe", "equals": "trailer.qtd"}],
+}
+
+
+def test_write_round_trip(tmp_path):
+    con = duckdb.connect()
+    con.sql(
+        "CREATE TABLE dividas AS SELECT * FROM (VALUES "
+        "('JOÃO DA SILVA SAURO', 1234.56, DATE '2026-03-15'), ('MARIA', 0.05, NULL)) t(nome, valor, vencimento)"
+    )
+    out = tmp_path / "saida.txt"
+    n = remessa.write(
+        WRITE_LAYOUT,
+        {
+            "header": "SELECT DATE '2026-02-01' AS data",
+            "detalhe": "dividas",
+            "trailer": "SELECT count(*) AS qtd FROM dividas",
+        },
+        out,
+        con,
+    )
+    assert n == 4
+    assert out.read_bytes().decode("latin-1").split("\r\n") == [
+        "001022026" + " " * 21,
+        "1JOÃO DA SI00012345620260315  ",  # name cut to 10, implied decimal, date formatted
+        "1MARIA     00000000500000000  ",  # NULL date written as zeros
+        "9000002" + " " * 23,
+        "",
+    ]
+    assert remessa.check(WRITE_LAYOUT, out) == []
+    back = remessa.load(WRITE_LAYOUT, out)["detalhe"].project("nome, valor, vencimento").fetchall()
+    assert back == [("JOÃO DA SI", Decimal("1234.56"), datetime.date(2026, 3, 15)), ("MARIA", Decimal("0.05"), None)]
+
+
+def test_write_refuses_numbers_that_do_not_fit(tmp_path):
+    with pytest.raises(ValueError, match="detalhe.valor are negative or do not fit"):
+        remessa.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, 99999999.99 AS valor"}, tmp_path / "o.txt")
+    with pytest.raises(ValueError, match="detalhe.valor are negative or do not fit"):
+        remessa.write(WRITE_LAYOUT, {"detalhe": "SELECT 'X' AS nome, -1.00 AS valor"}, tmp_path / "o.txt")
+
+
+def test_write_cnab240_interleaves_segments_and_checks_clean(tmp_path):
+    out = tmp_path / "gerado.rem"
+    titulos = "(VALUES (1, 'ANA', 150.00), (2, 'BRUNO', 32.99)) t(i, nome, valor)"
+    remessa.write(
+        "cnab240",
+        {
+            "header_arquivo": "SELECT '001' AS banco, 'EMPRESA' AS nome_empresa, DATE '2026-11-20' AS data_geracao",
+            "header_lote": "SELECT '001' AS banco, '0001' AS lote",
+            "segmento_p": f"SELECT i AS _order, '001' AS banco, '0001' AS lote, i * 2 - 1 AS sequencial_no_lote, "
+            f"valor AS valor_nominal, DATE '2026-12-15' AS data_vencimento FROM {titulos}",
+            "segmento_q": f"SELECT i AS _order, '001' AS banco, '0001' AS lote, i * 2 AS sequencial_no_lote, "
+            f"nome AS pagador_nome FROM {titulos}",
+            "trailer_lote": "SELECT '001' AS banco, '0001' AS lote, 6 AS qtd_registros",
+            "trailer_arquivo": "SELECT '001' AS banco, 1 AS qtd_lotes, 8 AS qtd_registros",
+        },
+        out,
+    )
+    lines = out.read_text(encoding="latin-1").splitlines()
+    assert [ln[7] + ln[13] for ln in lines] == ["0 ", "1 ", "3P", "3Q", "3P", "3Q", "5 ", "9 "]
+    assert remessa.check("cnab240", out) == []
+    t = remessa.load("cnab240", out)
+    assert t["segmento_p"].project("valor_nominal").fetchall() == [(Decimal("150.00"),), (Decimal("32.99"),)]
+    assert t["segmento_q"].project("pagador_nome").fetchall() == [("ANA",), ("BRUNO",)]
+
+
+def test_cli_rejects_and_write(good, tmp_path, capsys):
+    layout = tmp_path / "layout.yml"
+    layout.write_text(yaml.safe_dump(WRITE_LAYOUT), encoding="utf-8")
+    out = tmp_path / "cli.txt"
+    args = ["--from", "detalhe=SELECT 'ANA' AS nome, 10.5 AS valor", "--from", "trailer=SELECT 1 AS qtd"]
+    assert main(["write", str(layout), str(out), *args]) == 0
+    assert out.read_text(encoding="latin-1").splitlines()[0].startswith("1ANA       000001050")
+    assert main(["rejects", str(layout), str(out)]) == 0
+    out.write_text("1ANA       00000X05000000000  \n", encoding="latin-1")
+    rej = tmp_path / "rejects.csv"
+    assert main(["rejects", str(layout), str(out), str(rej)]) == 1
+    assert "detalhe.valor: not a valid decimal" in rej.read_text(encoding="utf-8")
+
+
 def test_example_runs():
     ex = Path(__file__).parent.parent / "examples"
     assert remessa.check(ex / "cobranca.yml", ex / "cobranca.txt") == []

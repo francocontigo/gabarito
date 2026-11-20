@@ -9,8 +9,8 @@ records:
     length: 240
     fields:
       banco: {pos: [1, 3]}
-      lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      lote: {pos: [4, 4], value: '0000'}
+      tipo_registro: {pos: [8, 1], value: '0'}
       tipo_inscricao: {pos: [18, 1]}
       numero_inscricao: {pos: [19, 14]}
       convenio: {pos: [33, 20]}
@@ -35,7 +35,7 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '1'}
       tipo_operacao: {pos: [9, 1]}
       tipo_servico: {pos: [10, 2]}
       versao_layout_lote: {pos: [14, 3]}
@@ -59,9 +59,9 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '3'}
       sequencial_no_lote: {pos: [9, 5], type: int}
-      segmento: {pos: [14, 1]}
+      segmento: {pos: [14, 1], value: 'P'}
       codigo_movimento: {pos: [16, 2]}
       agencia: {pos: [18, 5]}
       agencia_dv: {pos: [23, 1]}
@@ -104,9 +104,9 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '3'}
       sequencial_no_lote: {pos: [9, 5], type: int}
-      segmento: {pos: [14, 1]}
+      segmento: {pos: [14, 1], value: 'Q'}
       codigo_movimento: {pos: [16, 2]}
       pagador_tipo_inscricao: {pos: [18, 1]}
       pagador_numero_inscricao: {pos: [19, 15]}
@@ -128,9 +128,9 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '3'}
       sequencial_no_lote: {pos: [9, 5], type: int}
-      segmento: {pos: [14, 1]}
+      segmento: {pos: [14, 1], value: 'R'}
       codigo_movimento: {pos: [16, 2]}
       codigo_desconto_2: {pos: [18, 1]}
       data_desconto_2: {pos: [19, 8], type: date, format: '%d%m%Y'}
@@ -158,9 +158,9 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '3'}
       sequencial_no_lote: {pos: [9, 5], type: int}
-      segmento: {pos: [14, 1]}
+      segmento: {pos: [14, 1], value: 'T'}
       codigo_movimento: {pos: [16, 2]}
       agencia: {pos: [18, 5]}
       agencia_dv: {pos: [23, 1]}
@@ -189,9 +189,9 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '3'}
       sequencial_no_lote: {pos: [9, 5], type: int}
-      segmento: {pos: [14, 1]}
+      segmento: {pos: [14, 1], value: 'U'}
       codigo_movimento: {pos: [16, 2]}
       valor_acrescimos: {pos: [18, 15], type: decimal, scale: 2}
       valor_desconto: {pos: [33, 15], type: decimal, scale: 2}
@@ -215,7 +215,7 @@ records:
     fields:
       banco: {pos: [1, 3]}
       lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      tipo_registro: {pos: [8, 1], value: '5'}
       qtd_registros: {pos: [18, 6], type: int}
       simples_qtd_titulos: {pos: [24, 6], type: int}
       simples_valor_total: {pos: [30, 17], type: decimal, scale: 2}
@@ -231,8 +231,8 @@ records:
     length: 240
     fields:
       banco: {pos: [1, 3]}
-      lote: {pos: [4, 4]}
-      tipo_registro: {pos: [8, 1]}
+      lote: {pos: [4, 4], value: '9999'}
+      tipo_registro: {pos: [8, 1], value: '9'}
       qtd_lotes: {pos: [18, 6], type: int}
       qtd_registros: {pos: [24, 6], type: int}
       qtd_contas_conciliacao: {pos: [30, 6], type: int}

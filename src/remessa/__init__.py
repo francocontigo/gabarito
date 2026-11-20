@@ -1,3 +1,3 @@
-from remessa.layout import LayoutError, check, init, load, load_layout, sql
+from remessa.layout import LayoutError, check, init, load, load_layout, rejects, rejects_sql, sql, write
 
-__all__ = ["LayoutError", "check", "init", "load", "load_layout", "sql"]
+__all__ = ["LayoutError", "check", "init", "load", "load_layout", "rejects", "rejects_sql", "sql", "write"]

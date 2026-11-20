@@ -19,7 +19,7 @@ SOURCES = ("fixed", "csv", "xlsx")
 TYPES = ("str", "int", "decimal", "date")
 TOP_KEYS = ("source", "encoding", "records", "expect", "delimiter", "skip_rows", "decimal_comma", "sheet")
 RECORD_KEYS = ("match", "length", "fields")
-FIELD_KEYS = ("pos", "column", "type", "scale", "format")
+FIELD_KEYS = ("pos", "column", "type", "scale", "format", "value")
 
 
 class LayoutError(ValueError):
@@ -111,13 +111,15 @@ def _validate(layout) -> None:
             if t == "date" and not f.get("format"):
                 raise LayoutError(f"{where}: date needs 'format' (e.g. '%d%m%Y')")
     for rule in layout.get("expect") or []:
-        if not isinstance(rule, dict) or set(rule) != {"count", "equals"}:
-            raise LayoutError("expect: each rule needs 'count' and 'equals'")
-        if rule["count"] != "*" and rule["count"] not in records:
+        if not isinstance(rule, dict) or set(rule) not in ({"count", "equals"}, {"sum", "equals"}):
+            raise LayoutError("expect: each rule needs 'equals' and either 'count' or 'sum'")
+        if "count" in rule and rule["count"] != "*" and rule["count"] not in records:
             raise LayoutError(f"expect: count refers to unknown record {rule['count']!r} (use a record name or '*')")
-        rname, _, fname = str(rule["equals"]).partition(".")
-        if rname not in records or fname not in records[rname]["fields"]:
-            raise LayoutError(f"expect: equals must be <record>.<field>, got {rule['equals']!r}")
+        for key in ("sum", "equals"):
+            if key in rule:
+                rname, _, fname = str(rule[key]).partition(".")
+                if rname not in records or fname not in records[rname]["fields"]:
+                    raise LayoutError(f"expect: {key} must be <record>.<field>, got {rule[key]!r}")
 
 
 def _source(layout: dict, path) -> str:
@@ -237,12 +239,17 @@ def check(layout, path, con=None) -> list[str]:
                 aggs[("bad", rname, n)] = (
                     f"count(*) FILTER (WHERE {is_(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL)"
                 )
-    for rule in layout.get("expect") or []:
-        rname, fname = rule["equals"].split(".")
+    def field_of(ref):
+        rname, fname = ref.split(".")
         f = records[rname]["fields"][fname] or {}
-        aggs[("val", rule["equals"])] = (
-            f"any_value({_typed(layout, _raw(layout, fname, f), f)}) FILTER (WHERE {is_(records[rname])})"
-        )
+        return _typed(layout, _raw(layout, fname, f), f), is_(records[rname])
+
+    for rule in layout.get("expect") or []:
+        expr, cond = field_of(rule["equals"])
+        aggs[("val", rule["equals"])] = f"any_value({expr}) FILTER (WHERE {cond})"
+        if "sum" in rule:
+            expr, cond = field_of(rule["sum"])
+            aggs[("sum", rule["sum"])] = f"coalesce(sum({expr}) FILTER (WHERE {cond}), 0)"
     got = dict(zip(aggs, con.sql(f"SELECT {', '.join(aggs.values())} FROM {src}").fetchall()[0]))
 
     def lines_where(cond):
@@ -267,17 +274,143 @@ def check(layout, path, con=None) -> list[str]:
             if got.get(("bad", rname, n)):
                 problems.append(f"{rname}.{n}: {got[('bad', rname, n)]} value(s) do not convert to {f['type']}")
     for rule in layout.get("expect") or []:
-        target = rule["count"]
         rname = rule["equals"].split(".")[0]
-        count = got[("total",)] if target == "*" else got[("n", target)]
-        label = "lines" if target == "*" else f"{target} record(s)"
+        said = got[("val", rule["equals"])]
         if got[("n", rname)] != 1:
             problems.append(f"expect: expected exactly 1 {rname} record, found {got[('n', rname)]}")
-        elif got[("val", rule["equals"])] != count:
-            problems.append(
-                f"expect: {rule['equals']} says {got[('val', rule['equals'])]}, but the file has {count} {label}"
-            )
+        elif "sum" in rule:
+            total = got[("sum", rule["sum"])]
+            if said != total:
+                problems.append(f"expect: {rule['equals']} says {said}, but {rule['sum']} adds up to {total}")
+        else:
+            target = rule["count"]
+            count = got[("total",)] if target == "*" else got[("n", target)]
+            label = "lines" if target == "*" else f"{target} record(s)"
+            if said != count:
+                problems.append(f"expect: {rule['equals']} says {said}, but the file has {count} {label}")
     return problems
+
+
+def rejects_sql(layout, path) -> str:
+    """SELECT returning the lines that break the layout, each with the reasons."""
+    layout = load_layout(layout)
+    src = _source(layout, path)
+    fixed = layout.get("source", "fixed") == "fixed"
+    records = layout["records"]
+
+    def is_(rec):
+        return f"regexp_matches(line, {_q(rec['match'])})" if rec.get("match") else "TRUE"
+
+    cases = []
+    if fixed:
+        unmatched = "NOT (" + " OR ".join(is_(r) for r in records.values()) + ")"
+        cases.append(f"CASE WHEN {unmatched} THEN 'matches no record' END")
+    for rname, rec in records.items():
+        if fixed and rec.get("length"):
+            cases.append(
+                f"CASE WHEN {is_(rec)} AND length(line) <> {int(rec['length'])} "
+                f"THEN {_q(rname + ': length ')} || length(line) || {_q(', expected ' + str(rec['length']))} END"
+            )
+        for n, f in rec["fields"].items():
+            f = f or {}
+            if f.get("type", "str") != "str":
+                raw = _raw(layout, n, f)
+                cases.append(
+                    f"CASE WHEN {is_(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL "
+                    f"THEN {_q(f'{rname}.{n}: not a valid ' + f['type'])} END"
+                )
+    reasons = f"concat_ws('; ', {', '.join(cases)})" if cases else "''"
+    if fixed:
+        # ponytail: same line-number caveat as check(); with a glob the numbering runs across files.
+        inner = f"SELECT filename AS _file, row_number() OVER () AS _line, {reasons} AS reasons, line FROM {src}"
+    else:
+        inner = f"SELECT {reasons} AS reasons, * FROM {src}"
+    return f"SELECT * FROM ({inner}) WHERE reasons <> ''"
+
+
+def rejects(layout, path, con=None) -> duckdb.DuckDBPyRelation:
+    """Lazy relation with the lines that break the layout (see rejects_sql)."""
+    return (con or duckdb.connect()).sql(rejects_sql(layout, path))
+
+
+def write(layout, tables: dict[str, str], path, con=None, newline: str = "\r\n") -> int:
+    """Write a fixed-width file from tables. Returns the number of lines written.
+
+    `tables` maps record name -> SQL query or table name. Columns are matched to fields by
+    name; a field with no column uses its `value`, or blanks. Records are written in layout
+    order. To interleave records (CNAB: each P followed by its Q), give those queries an
+    `_order` column: they are then merged by it.
+    """
+    layout = load_layout(layout)
+    if layout.get("source", "fixed") != "fixed":
+        raise LayoutError("write only produces fixed-width files; for CSV and Excel use DuckDB's COPY")
+    con = con or duckdb.connect()
+    records = layout["records"]
+    unknown = set(tables) - set(records)
+    if unknown:
+        raise LayoutError(f"write: no record named {sorted(unknown)[0]!r} in the layout")
+
+    names = list(records)
+    ordered = [r for r in names if r in tables and "_order" in _columns(con, tables[r])]
+    first, last = (names.index(ordered[0]), names.index(ordered[-1])) if ordered else (0, -1)
+    parts, guards = [], {}
+    for i, (rname, rec) in enumerate(records.items()):
+        if rname not in tables:
+            continue
+        query = _as_query(tables[rname])
+        cols = _columns(con, tables[rname])
+        pieces, at = [], 1
+        for n, f in sorted(rec["fields"].items(), key=lambda kv: kv[1]["pos"][0]):
+            start, length = f["pos"]
+            if start < at:
+                raise LayoutError(f"write: field {rname}.{n} overlaps the previous field")
+            if start > at:
+                pieces.append(f"repeat(' ', {start - at})")
+            x = _id(n) if n.lower() in cols else _q(f["value"]) if "value" in f else "NULL"
+            t = f.get("type", "str")
+            if t == "str":
+                pieces.append(f"rpad(left(coalesce(CAST({x} AS VARCHAR), ''), {length}), {length}, ' ')")
+            elif t == "date":
+                text = f"strftime(CAST({x} AS DATE), {_q(f['format'])})"
+                pieces.append(f"coalesce({text}, repeat('0', {length}))")
+                guards[f"{rname}.{n}"] = (query, f"{x} IS NOT NULL AND length({text}) <> {length}")
+            else:
+                scale = int(f.get("scale", 2)) if t == "decimal" else 0
+                # Exact: DECIMAL times a power of ten, then the digits. NULL is written as zeros.
+                text = f"CAST(CAST(CAST(coalesce({x}, 0) AS DECIMAL(38,{scale})) * {10**scale} AS HUGEINT) AS VARCHAR)"
+                pieces.append(f"lpad({text}, {length}, '0')")
+                guards[f"{rname}.{n}"] = (query, f"NOT regexp_full_match({text}, '[0-9]{{1,{length}}}')")
+            at = start + length
+        if rec.get("length", at - 1) > at - 1:
+            pieces.append(f"repeat(' ', {rec['length'] - at + 1})")
+        stage = 1 if rname in ordered else 0 if i < first else 2 if i > last else 1
+        order = "_order" if rname in ordered else "NULL"
+        parts.append(
+            f"SELECT {stage} AS s, {order} AS o, {i} AS r, row_number() OVER () AS n, "
+            f"{' || '.join(pieces)} AS line FROM ({query})"
+        )
+
+    # A number that does not fit its field would be silently cut by lpad: refuse instead.
+    for name, (query, cond) in guards.items():
+        bad = con.sql(f"SELECT count(*) FROM ({query}) WHERE {cond}").fetchall()[0][0]
+        if bad:
+            raise ValueError(f"write: {bad} value(s) of {name} are negative or do not fit the field")
+
+    cur = con.execute(f"SELECT line FROM ({' UNION ALL '.join(parts)}) ORDER BY s, o, r, n") if parts else None
+    total = 0
+    with open(path, "w", encoding=layout.get("encoding", "utf-8"), newline="") as out:
+        while cur and (rows := cur.fetchmany(50_000)):  # streamed: memory stays flat on large tables
+            out.write("".join(r[0] + newline for r in rows))
+            total += len(rows)
+    return total
+
+
+def _as_query(table: str) -> str:
+    return table if re.search(r"\s", table.strip()) else f"SELECT * FROM {table}"
+
+
+def _columns(con, table: str) -> set[str]:
+    return {r[0].lower() for r in con.sql(f"DESCRIBE {_as_query(table)}").fetchall()}
 
 
 def init(path, source=None, encoding="latin-1", con=None) -> str:
