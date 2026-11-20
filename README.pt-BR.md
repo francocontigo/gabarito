@@ -2,9 +2,13 @@
 
 Um YAML descreve o arquivo que o cliente manda. O DuckDB devolve tabelas tipadas.
 
-Serve para arquivo posicional (vários tipos de registro no mesmo arquivo), CSV e Excel, do disco ou do S3, sem importar nada para um banco antes. Já vem com um layout de CNAB 240.
+Serve para arquivo posicional (vários tipos de registro no mesmo arquivo), CSV e Excel, do disco ou do S3, sem importar nada para um banco antes. Também escreve arquivo posicional a partir de uma consulta. Já vem com layouts de CNAB 240 e CNAB 400.
 
 [English](README.md)
+
+![workflow](docs/workflow.svg)
+
+O desenho como script executável, com Postgres no Docker: [`examples/workflow`](examples/workflow).
 
 ## Por que existe
 
@@ -43,6 +47,8 @@ remessa init   arquivo.txt                    # rascunho de layout a partir de u
 remessa check  layout.yml arquivo.txt         # o arquivo bate com o layout?
 remessa sql    layout.yml arquivo.txt         # imprime o SQL gerado
 remessa export layout.yml arquivo.txt saida/  # um Parquet por registro
+remessa rejects layout.yml arquivo.txt ruins.csv  # as linhas que quebram o layout, com o motivo
+remessa write  layout.yml saida.txt --from detalhe="SELECT ..."  # tabelas -> arquivo posicional
 ```
 
 O `check` sai com código 1 e lista o que achou (as mensagens são em inglês):
@@ -69,7 +75,8 @@ O `init` adivinha os tipos de registro pelo primeiro caractere e os limites dos 
 | `fields.<nome>.pos` | `[início, tamanho]`, início a partir de 1. Só em `fixed` |
 | `fields.<nome>.column` | Nome da coluna no arquivo. Só em `csv` e `xlsx` |
 | `fields.<nome>.type` | `str` (padrão), `int`, `decimal`, `date` |
-| `expect` | `count: <registro ou '*'>` deve ser igual a `equals: <registro>.<campo>` |
+| `fields.<nome>.value` | Literal fixo, usado pelo `write` quando nenhuma coluna alimenta o campo |
+| `expect` | `count: <registro ou '*'>` ou `sum: <registro>.<campo>` deve ser igual a `equals: <registro>.<campo>` |
 | `delimiter`, `skip_rows` | Só em `csv`. Delimitador padrão `;` |
 | `decimal_comma` | `1.234,56` em vez de `1234.56`. Padrão: ligado em `csv`, desligado em `xlsx` |
 | `sheet` | Aba da planilha. Só em `xlsx` |
@@ -83,6 +90,44 @@ Regras dos tipos:
 - Valor que não converte vira `NULL` na tabela e aparece no `check`.
 
 Cada tabela traz `_file` com o arquivo de origem (exceto `xlsx`).
+
+## Linhas rejeitadas
+
+O `check` conta os problemas; o `rejects` entrega as linhas, para o pipeline carregar as boas e devolver as ruins.
+
+```python
+remessa.rejects("layout.yml", "arquivo.txt", con)   # _file, _line, reasons, line
+```
+
+```
+_line | reasons                                                                  | line
+3     | detalhe: length 47, expected 50                                          | 1CURTA ...
+4     | detalhe.valor: not a valid decimal; detalhe.vencimento: not a valid date | 1RUIM ...
+5     | matches no record                                                        | 7 unknown record type
+```
+
+## Escrita de arquivo
+
+O mesmo layout que lê um arquivo escreve um. Cada registro é alimentado por uma consulta ou tabela; as colunas casam com os campos pelo nome.
+
+```python
+remessa.write(
+    "retorno.yml",
+    {
+        "header": "SELECT current_date AS data",
+        "detalhe": "SELECT contrato, status, valor FROM aceitos ORDER BY contrato",
+        "trailer": "SELECT count(*) AS qtd, sum(valor) AS total FROM aceitos",
+    },
+    "retorno.txt",
+    con,
+)
+```
+
+- Texto é preenchido com espaços e cortado no tamanho do campo; número é preenchido com zeros; decimal perde a vírgula (`scale`); data usa o `format` do campo; `NULL` vira brancos ou zeros.
+- Número que não cabe no campo, ou negativo, gera erro em vez de ser cortado.
+- Campo sem coluna usa o `value` (código do tipo de registro, por exemplo), ou brancos.
+- Os registros saem na ordem do layout. Para intercalar (CNAB: cada segmento P seguido do seu Q), inclua uma coluna `_order` nessas consultas.
+- As linhas terminam em CRLF por padrão (`newline=` muda). A saída é um arquivo local.
 
 ## CNAB 240
 
@@ -121,7 +166,7 @@ O DuckDB é só quem executa. Dois caminhos:
 
 **Parquet.** `remessa export` grava Parquet, que Redshift, Snowflake, BigQuery, Athena e Spark leem direto.
 
-**Direto pelo DuckDB.** Ele anexa Postgres e MySQL e grava neles:
+**Direto pelo DuckDB.** Ele anexa Postgres e MySQL e grava neles (o Postgres é exercitado em [`examples/workflow`](examples/workflow); MySQL não foi testado):
 
 ```python
 con.sql("ATTACH 'postgresql://user:senha@host/db' AS pg (TYPE postgres)")

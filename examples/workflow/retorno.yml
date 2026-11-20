@@ -1,0 +1,30 @@
+# The file sent back to the client: what was accepted, with the status from the database.
+source: fixed
+encoding: latin-1
+records:
+  header:
+    match: '^0'
+    length: 40
+    fields:
+      tipo: {pos: [1, 1], value: '0'}
+      data: {pos: [2, 8], type: date, format: '%d%m%Y'}
+  detalhe:
+    match: '^1'
+    length: 40
+    fields:
+      tipo:     {pos: [1, 1], value: '1'}
+      contrato: {pos: [2, 8]}
+      status:   {pos: [10, 10]}
+      valor:    {pos: [20, 13], type: decimal, scale: 2}
+  trailer:
+    match: '^9'
+    length: 40
+    fields:
+      tipo:  {pos: [1, 1], value: '9'}
+      qtd:   {pos: [2, 6], type: int}
+      total: {pos: [8, 15], type: decimal, scale: 2}
+expect:
+  - count: detalhe
+    equals: trailer.qtd
+  - sum: detalhe.valor
+    equals: trailer.total

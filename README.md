@@ -2,9 +2,13 @@
 
 A YAML file describes the file your client sends. DuckDB gives you typed tables.
 
-Works with fixed-width files (several record types per file), CSV and Excel, from disk or S3, with nothing imported into a database first. Ships with a CNAB 240 layout.
+Works with fixed-width files (several record types per file), CSV and Excel, from disk or S3, with nothing imported into a database first. It also writes fixed-width files from a query. Ships with CNAB 240 and CNAB 400 layouts.
 
 [Português](README.pt-BR.md)
+
+![workflow](docs/workflow.svg)
+
+The picture as a runnable script, with Postgres in Docker: [`examples/workflow`](examples/workflow).
 
 ## Why
 
@@ -71,6 +75,8 @@ remessa init   file.txt                     # draft a layout from a sample of th
 remessa check  layout.yml file.txt          # does the file match the layout?
 remessa sql    layout.yml file.txt          # print the generated SQL
 remessa export layout.yml file.txt out/     # one Parquet file per record
+remessa rejects layout.yml file.txt bad.csv # the lines that break the layout, with the reasons
+remessa write  layout.yml out.txt --from detalhe="SELECT ..."   # tables -> fixed-width file
 ```
 
 `check` exits with 1 and lists what it found:
@@ -97,7 +103,8 @@ For CSV and Excel it also reports missing and unexpected columns. An invalid lay
 | `fields.<name>.pos` | `[start, length]`, start counted from 1. `fixed` only |
 | `fields.<name>.column` | Column name in the file. `csv` and `xlsx` only |
 | `fields.<name>.type` | `str` (default), `int`, `decimal`, `date` |
-| `expect` | `count: <record or '*'>` must equal `equals: <record>.<field>` |
+| `fields.<name>.value` | Fixed literal, used by `write` when no column feeds the field |
+| `expect` | `count: <record or '*'>` or `sum: <record>.<field>` must equal `equals: <record>.<field>` |
 | `delimiter`, `skip_rows` | `csv` only. Default delimiter `;` |
 | `decimal_comma` | `1.234,56` instead of `1234.56`. Default: on for `csv`, off for `xlsx` |
 | `sheet` | Worksheet name. `xlsx` only |
@@ -111,6 +118,44 @@ How types behave:
 - A value that does not convert becomes `NULL` in the table and shows up in `check`.
 
 Each table has a `_file` column with the source file (except `xlsx`).
+
+## Rejected lines
+
+`check` counts problems; `rejects` gives you the lines, so a pipeline can load the good ones and send the bad ones back.
+
+```python
+remessa.rejects("layout.yml", "file.txt", con)   # _file, _line, reasons, line
+```
+
+```
+_line | reasons                                                                  | line
+3     | detalhe: length 47, expected 50                                          | 1CURTA ...
+4     | detalhe.valor: not a valid decimal; detalhe.vencimento: not a valid date | 1RUIM ...
+5     | matches no record                                                        | 7 unknown record type
+```
+
+## Writing files
+
+The same layout that reads a file writes one. Each record is fed by a query or a table; columns are matched to fields by name.
+
+```python
+remessa.write(
+    "retorno.yml",
+    {
+        "header": "SELECT current_date AS data",
+        "detalhe": "SELECT contrato, status, valor FROM aceitos ORDER BY contrato",
+        "trailer": "SELECT count(*) AS qtd, sum(valor) AS total FROM aceitos",
+    },
+    "retorno.txt",
+    con,
+)
+```
+
+- Text is padded with spaces and cut to the field; numbers are zero-padded; decimals lose the point (`scale`); dates use the field's `format`; `NULL` becomes blanks or zeros.
+- A number that does not fit its field, or is negative, raises an error instead of being cut.
+- A field with no column takes its `value` (record type codes, for example), or blanks.
+- Records come out in layout order. To interleave them (CNAB: each segment P followed by its Q), add an `_order` column to those queries.
+- Lines end in CRLF by default (`newline=` changes it). Output is a local file.
 
 ## CNAB 240
 
@@ -149,7 +194,7 @@ DuckDB only executes. Two ways out:
 
 **Parquet.** `remessa export` writes Parquet, which Redshift, Snowflake, BigQuery, Athena and Spark read directly.
 
-**Straight through DuckDB.** It attaches Postgres and MySQL and writes to them:
+**Straight through DuckDB.** It attaches Postgres and MySQL and writes to them (Postgres is exercised by [`examples/workflow`](examples/workflow); MySQL was not tested):
 
 ```python
 con.sql("ATTACH 'postgresql://user:pass@host/db' AS pg (TYPE postgres)")

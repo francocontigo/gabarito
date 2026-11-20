@@ -1,0 +1,267 @@
+# CNAB 240 Santander, cobrança. Positions from "Layout Cobrança H7815 – CNAB 240 Posições", Versão 3.8, Novembro/2021
+# (Banco Santander, "Manual do Cliente de Cobrança – Troca de Arquivos Padrão CNAB"), pages 7-10 and 14-19.
+# Copy read: https://suporte.condomob.net/hc/pt-br/article_attachments/54546468627995 (ERP-vendor mirror).
+# The current Santander edition (v8.3, Abril/2025, cms.santander.com.br) returned HTTP 404 and was NOT read.
+# Remessa and retorno differ for header de arquivo, header de lote and trailer de lote -> *_retorno variants.
+# Trailer de arquivo has the same positions in both directions.
+source: fixed
+encoding: latin-1
+records:
+  # ---------------------------------------------------------------- remessa
+  header_arquivo:
+    match: '^.{7}0.{134}1'   # record type 0 at position 8, codigo_remessa = 1 at position 143
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}          # manual prints "33" in this table, "033" in all others
+      lote: {pos: [4, 4], value: '0000'}
+      tipo_registro: {pos: [8, 1], value: '0'}
+      tipo_inscricao_empresa: {pos: [17, 1]}      # 1 = CPF, 2 = CNPJ
+      numero_inscricao_empresa: {pos: [18, 15]}
+      codigo_transmissao: {pos: [33, 15]}
+      nome_empresa: {pos: [73, 30]}
+      nome_banco: {pos: [103, 30]}
+      codigo_remessa: {pos: [143, 1], value: '1'}
+      data_geracao: {pos: [144, 8], type: date, format: '%d%m%Y'}
+      numero_sequencial_arquivo: {pos: [158, 6], type: int}
+      versao_layout_arquivo: {pos: [164, 3], value: '040'}
+  header_lote:
+    match: '^.{7}1R'         # record type 1 at position 8, tipo_operacao = R at position 9
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '1'}
+      tipo_operacao: {pos: [9, 1], value: 'R'}
+      tipo_servico: {pos: [10, 2], value: '01'}
+      versao_layout_lote: {pos: [14, 3], value: '030'}
+      tipo_inscricao_empresa: {pos: [18, 1]}
+      numero_inscricao_empresa: {pos: [19, 15]}
+      codigo_transmissao: {pos: [54, 15]}
+      nome_beneficiario: {pos: [74, 30]}
+      mensagem_1: {pos: [104, 40]}
+      mensagem_2: {pos: [144, 40]}
+      numero_remessa: {pos: [184, 8], type: int}
+      data_gravacao: {pos: [192, 8], type: date, format: '%d%m%Y'}
+  segmento_p:
+    match: '^.{7}3.{5}P'     # segment letter is at position 14
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '3'}
+      numero_sequencial_registro: {pos: [9, 5], type: int}
+      segmento: {pos: [14, 1], value: 'P'}
+      codigo_movimento: {pos: [16, 2]}
+      agencia_destinataria: {pos: [18, 4]}
+      agencia_destinataria_dv: {pos: [22, 1]}
+      conta_corrente: {pos: [23, 9]}
+      conta_corrente_dv: {pos: [32, 1]}
+      conta_cobranca_fidc: {pos: [33, 9]}
+      conta_cobranca_fidc_dv: {pos: [42, 1]}
+      nosso_numero: {pos: [45, 13]}
+      tipo_cobranca: {pos: [58, 1]}
+      forma_cadastramento: {pos: [59, 1]}
+      tipo_documento: {pos: [60, 1]}              # 1 = Tradicional, 2 = Escritural
+      numero_documento: {pos: [63, 15]}           # seu número
+      data_vencimento: {pos: [78, 8], type: date, format: '%d%m%Y'}
+      valor_nominal: {pos: [86, 15], type: decimal, scale: 2}
+      agencia_cobradora_fidc: {pos: [101, 4]}
+      agencia_cobradora_fidc_dv: {pos: [105, 1]}
+      especie_titulo: {pos: [107, 2]}
+      aceite: {pos: [109, 1]}
+      data_emissao: {pos: [110, 8], type: date, format: '%d%m%Y'}
+      codigo_juros_mora: {pos: [118, 1]}
+      data_juros_mora: {pos: [119, 8], type: date, format: '%d%m%Y'}
+      valor_juros_mora: {pos: [127, 15], type: decimal, scale: 2}    # valor por dia ou taxa mensal
+      codigo_desconto_1: {pos: [142, 1]}
+      data_desconto_1: {pos: [143, 8], type: date, format: '%d%m%Y'}
+      valor_desconto_1: {pos: [151, 15], type: decimal, scale: 2}    # valor ou percentual
+      valor_iof: {pos: [166, 15], type: decimal, scale: 2}
+      valor_abatimento: {pos: [181, 15], type: decimal, scale: 2}
+      identificacao_titulo_empresa: {pos: [196, 25]}
+      codigo_protesto: {pos: [221, 1]}
+      dias_protesto: {pos: [222, 2], type: int}
+      codigo_baixa_devolucao: {pos: [224, 1]}
+      dias_baixa_devolucao: {pos: [226, 2], type: int}
+      codigo_moeda: {pos: [228, 2]}
+  segmento_q:
+    match: '^.{7}3.{5}Q'
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '3'}
+      numero_sequencial_registro: {pos: [9, 5], type: int}
+      segmento: {pos: [14, 1], value: 'Q'}
+      codigo_movimento: {pos: [16, 2]}
+      tipo_inscricao_pagador: {pos: [18, 1]}
+      numero_inscricao_pagador: {pos: [19, 15]}
+      nome_pagador: {pos: [34, 40]}
+      endereco_pagador: {pos: [74, 40]}
+      bairro_pagador: {pos: [114, 15]}
+      cep_pagador: {pos: [129, 5]}
+      cep_sufixo_pagador: {pos: [134, 3]}
+      cidade_pagador: {pos: [137, 15]}
+      uf_pagador: {pos: [152, 2]}
+      tipo_inscricao_beneficiario_final: {pos: [154, 1]}
+      numero_inscricao_beneficiario_final: {pos: [155, 15]}
+      nome_beneficiario_final: {pos: [170, 40]}
+      identificador_carne: {pos: [210, 3]}
+      sequencial_parcela: {pos: [213, 3]}
+      quantidade_parcelas: {pos: [216, 3]}
+      numero_plano: {pos: [219, 3]}
+  segmento_r:
+    match: '^.{7}3.{5}R'
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '3'}
+      numero_sequencial_registro: {pos: [9, 5], type: int}
+      segmento: {pos: [14, 1], value: 'R'}
+      codigo_movimento: {pos: [16, 2]}
+      codigo_desconto_2: {pos: [18, 1]}
+      data_desconto_2: {pos: [19, 8], type: date, format: '%d%m%Y'}
+      valor_desconto_2: {pos: [27, 15], type: decimal, scale: 2}
+      codigo_desconto_3: {pos: [42, 1]}
+      data_desconto_3: {pos: [43, 8], type: date, format: '%d%m%Y'}
+      valor_desconto_3: {pos: [51, 15], type: decimal, scale: 2}
+      codigo_multa: {pos: [66, 1]}                # 1 = valor fixo, 2 = percentual
+      data_multa: {pos: [67, 8], type: date, format: '%d%m%Y'}
+      valor_multa: {pos: [75, 15], type: decimal, scale: 2}
+      mensagem_3: {pos: [100, 40]}
+      mensagem_4: {pos: [140, 40]}
+  trailer_lote:
+    match: '^.{7}5.{15}( |$)'  # remessa: position 24 onwards is blank (retorno carries totals there)
+    length: 240
+    fields:
+      banco: {pos: [1, 3]}                        # manual: 353 / 008 / 033
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '5'}
+      qtd_registros_lote: {pos: [18, 6], type: int}
+  # ---------------------------------------------------------------- retorno
+  header_arquivo_retorno:
+    match: '^.{7}0.{134}2'   # codigo_remessa_retorno = 2 at position 143
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4], value: '0000'}
+      tipo_registro: {pos: [8, 1], value: '0'}
+      tipo_inscricao_empresa: {pos: [17, 1]}
+      numero_inscricao_empresa: {pos: [18, 15]}
+      agencia_beneficiario: {pos: [33, 4]}
+      agencia_beneficiario_dv: {pos: [37, 1]}
+      conta_corrente: {pos: [38, 9]}
+      conta_corrente_dv: {pos: [47, 1]}
+      codigo_beneficiario: {pos: [53, 9]}
+      nome_empresa: {pos: [73, 30]}
+      nome_banco: {pos: [103, 30]}
+      codigo_remessa_retorno: {pos: [143, 1], value: '2'}
+      data_geracao: {pos: [144, 8], type: date, format: '%d%m%Y'}
+      numero_sequencial_arquivo: {pos: [158, 6], type: int}
+      versao_layout_arquivo: {pos: [164, 3], value: '040'}
+  header_lote_retorno:
+    match: '^.{7}1T'         # tipo_operacao = T at position 9
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '1'}
+      tipo_operacao: {pos: [9, 1], value: 'T'}
+      tipo_servico: {pos: [10, 2], value: '01'}
+      versao_layout_lote: {pos: [14, 3], value: '040'}
+      tipo_inscricao_empresa: {pos: [18, 1]}
+      numero_inscricao_empresa: {pos: [19, 15]}
+      codigo_beneficiario: {pos: [34, 9]}
+      agencia_beneficiario: {pos: [54, 4]}
+      agencia_beneficiario_dv: {pos: [58, 1]}
+      conta_beneficiario: {pos: [59, 9]}
+      conta_beneficiario_dv: {pos: [68, 1]}
+      nome_empresa: {pos: [74, 30]}
+      numero_retorno: {pos: [184, 8], type: int}
+      data_gravacao: {pos: [192, 8], type: date, format: '%d%m%Y'}
+  segmento_t:
+    match: '^.{7}3.{5}T'
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '3'}
+      numero_sequencial_registro: {pos: [9, 5], type: int}
+      segmento: {pos: [14, 1], value: 'T'}
+      codigo_movimento: {pos: [16, 2]}
+      agencia_beneficiario: {pos: [18, 4]}
+      agencia_beneficiario_dv: {pos: [22, 1]}
+      conta_corrente: {pos: [23, 9]}
+      conta_corrente_dv: {pos: [32, 1]}
+      nosso_numero: {pos: [41, 13]}
+      codigo_carteira: {pos: [54, 1]}
+      numero_documento: {pos: [55, 15]}           # seu número
+      data_vencimento: {pos: [70, 8], type: date, format: '%d%m%Y'}
+      valor_nominal: {pos: [78, 15], type: decimal, scale: 2}
+      banco_cobrador: {pos: [93, 3]}
+      agencia_cobradora: {pos: [96, 4]}
+      agencia_cobradora_dv: {pos: [100, 1]}
+      identificacao_titulo_empresa: {pos: [101, 25]}
+      codigo_moeda: {pos: [126, 2]}
+      tipo_inscricao_pagador: {pos: [128, 1]}
+      numero_inscricao_pagador: {pos: [129, 15]}
+      nome_pagador: {pos: [144, 40]}
+      conta_cobranca: {pos: [184, 10]}
+      valor_tarifa: {pos: [194, 15], type: decimal, scale: 2}
+      motivos_ocorrencia: {pos: [209, 10]}        # 5 occurrences of 2 characters
+  segmento_u:
+    match: '^.{7}3.{5}U'
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '3'}
+      numero_sequencial_registro: {pos: [9, 5], type: int}
+      segmento: {pos: [14, 1], value: 'U'}
+      codigo_movimento: {pos: [16, 2]}
+      valor_juros_multa_encargos: {pos: [18, 15], type: decimal, scale: 2}
+      valor_desconto: {pos: [33, 15], type: decimal, scale: 2}
+      valor_abatimento: {pos: [48, 15], type: decimal, scale: 2}
+      valor_iof: {pos: [63, 15], type: decimal, scale: 2}
+      valor_pago: {pos: [78, 15], type: decimal, scale: 2}
+      valor_liquido_creditado: {pos: [93, 15], type: decimal, scale: 2}
+      valor_outras_despesas: {pos: [108, 15], type: decimal, scale: 2}
+      valor_outros_creditos: {pos: [123, 15], type: decimal, scale: 2}
+      data_ocorrencia: {pos: [138, 8], type: date, format: '%d%m%Y'}
+      data_credito: {pos: [146, 8], type: date, format: '%d%m%Y'}
+      codigo_ocorrencia_pagador: {pos: [154, 4]}
+      data_ocorrencia_pagador: {pos: [158, 8], type: date, format: '%d%m%Y'}
+      valor_ocorrencia_pagador: {pos: [166, 15], type: decimal, scale: 2}
+      complemento_ocorrencia_pagador: {pos: [181, 30]}
+      banco_correspondente: {pos: [211, 3]}
+  trailer_lote_retorno:
+    match: '^.{7}5.{15}\d'   # retorno: position 24 starts a numeric count
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '5'}
+      qtd_registros_lote: {pos: [18, 6], type: int}
+      qtd_titulos_cobranca_simples: {pos: [24, 6], type: int}
+      valor_titulos_cobranca_simples: {pos: [30, 17], type: decimal, scale: 2}
+      qtd_titulos_cobranca_vinculada: {pos: [47, 6], type: int}
+      valor_titulos_cobranca_vinculada: {pos: [53, 17], type: decimal, scale: 2}
+      qtd_titulos_cobranca_caucionada: {pos: [70, 6], type: int}
+      valor_titulos_cobranca_caucionada: {pos: [76, 17], type: decimal, scale: 2}
+      qtd_titulos_cobranca_descontada: {pos: [93, 6], type: int}
+      valor_titulos_cobranca_descontada: {pos: [99, 17], type: decimal, scale: 2}
+      numero_aviso_lancamento: {pos: [116, 8]}
+  # ---------------------------------------------------------------- both directions
+  trailer_arquivo:
+    match: '^.{7}9'
+    length: 240
+    fields:
+      banco: {pos: [1, 3], value: '033'}
+      lote: {pos: [4, 4]}
+      tipo_registro: {pos: [8, 1], value: '9'}
+      qtd_lotes: {pos: [18, 6], type: int}
+      qtd_registros: {pos: [24, 6], type: int}
+expect:
+  - count: '*'
+    equals: trailer_arquivo.qtd_registros

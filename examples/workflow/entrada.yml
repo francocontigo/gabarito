@@ -1,0 +1,29 @@
+# The file a client sends: header, one line per debt, trailer with count and total.
+source: fixed
+encoding: latin-1
+records:
+  header:
+    match: '^0'
+    length: 50
+    fields:
+      data_geracao: {pos: [2, 8], type: date, format: '%d%m%Y'}
+      carteira:     {pos: [10, 41]}
+  detalhe:
+    match: '^1'
+    length: 50
+    fields:
+      contrato:   {pos: [2, 8]}
+      nome:       {pos: [10, 20]}
+      valor:      {pos: [30, 13], type: decimal, scale: 2}
+      vencimento: {pos: [43, 8], type: date, format: '%Y%m%d'}
+  trailer:
+    match: '^9'
+    length: 50
+    fields:
+      qtd:   {pos: [2, 6], type: int}
+      total: {pos: [8, 15], type: decimal, scale: 2}
+expect:
+  - count: detalhe
+    equals: trailer.qtd
+  - sum: detalhe.valor
+    equals: trailer.total
