@@ -27,6 +27,8 @@ O `gabarito` é a camada pequena que cobre esses três pontos. O layout é dado,
 
 ## Para testar
 
+`pip install gabarito-duckdb` instala a biblioteca e o comando `gabarito`. Para rodar os exemplos, clone o repositório:
+
 ```bash
 git clone https://github.com/francocontigo/gabarito && cd gabarito
 pip install .

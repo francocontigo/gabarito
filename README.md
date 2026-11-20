@@ -27,6 +27,8 @@ Companies that receive files from clients end up with one hand-written parser pe
 
 ## Try it
 
+`pip install gabarito-duckdb` installs the library and the `gabarito` command. To run the examples, clone the repo:
+
 ```bash
 git clone https://github.com/francocontigo/gabarito && cd gabarito
 pip install .

@@ -1,5 +1,5 @@
 [project]
-name = "gabarito"
+name = "gabarito-duckdb"  # the name gabarito is not allowed on PyPI; the import is still gabarito
 version = "0.3.0"
 description = "YAML layouts for fixed-width, CSV and Excel files. DuckDB gives you typed tables."
 license = "MIT"
@@ -33,6 +33,9 @@ gabarito = "gabarito.cli:main"
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "gabarito"
 
 [dependency-groups]
 dev = [
