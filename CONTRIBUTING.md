@@ -4,6 +4,7 @@
 uv sync
 uv run pytest
 uvx ruff check . && uvx ruff format .
+uv run mypy
 ```
 
 ## Adding a bank or file layout
@@ -21,4 +22,5 @@ Name the file after what it describes, for example `cnab240_santander.yml` or `c
 
 - The library builds SQL and DuckDB runs it. Changes that loop over rows in Python are out of scope.
 - Keep it working on DuckDB 1.5 and 2.0. CI runs both, on Linux, Windows and macOS.
-- One test per behaviour, in `tests/test_gabarito.py`.
+- One test per behaviour, in `tests/test_gabarito.py`. CI fails under 95% coverage.
+- Every function is annotated; `mypy --strict` must pass.

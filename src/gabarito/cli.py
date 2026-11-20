@@ -4,10 +4,11 @@ from pathlib import Path
 
 import duckdb
 
-from gabarito.layout import LayoutError, _posix, check, init, rejects_sql, sql, write
+from gabarito import LayoutError, check, init, rejects_sql, sql, write
+from gabarito._sql import _posix
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="gabarito", description="YAML layout -> typed tables in DuckDB.")
     ap.add_argument(
         "--init",
@@ -57,7 +58,7 @@ def main(argv=None) -> int:
         return 2
 
 
-def _run(a) -> int:
+def _run(a: argparse.Namespace) -> int:
     con = duckdb.connect()
     if a.setup:
         con.execute(a.setup)

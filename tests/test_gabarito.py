@@ -389,6 +389,73 @@ def test_builtin_layout_writes_what_it_reads(name, tmp_path):
         assert len(rel.fetchall()) == 1, record
 
 
+A = {"match": "^1", "fields": {"x": {"pos": [1, 2]}}}
+
+
+@pytest.mark.parametrize(
+    "layout, message",
+    [
+        (["not", "a", "mapping"], "must be a mapping"),
+        ({"source": "pdf", "records": {"a": A}}, "invalid source 'pdf'"),
+        ({"source": "fixed"}, "has no 'records'"),
+        ({"source": "csv", "records": {"a": A, "b": A}}, "takes exactly one record"),
+        ({"records": {"a": "oops"}}, "must be a mapping with 'fields'"),
+        ({"records": {"a": {"match": "^1"}}}, "has no 'fields'"),
+        ({"records": {"a": {"match": "^1", "fields": {"x": "oops"}}}}, "must be a mapping, e.g."),
+        ({"records": {"a": {"match": "^1", "fields": {"x": {"pos": [1, 2], "type": "money"}}}}}, "invalid type"),
+        ({"records": {"a": {"match": "^1", "fields": {"x": {"pos": [1, 8], "type": "date"}}}}}, "date needs 'format'"),
+        ({"records": {"a": A}, "expect": [{"count": "a"}]}, "each rule needs 'equals'"),
+        ({"records": {"a": A}, "expect": [{"count": "zz", "equals": "a.x"}]}, "unknown record 'zz'"),
+        ({"records": {"a": A}, "recods": 1}, "did you mean 'records'"),
+    ],
+)
+def test_more_invalid_layouts(layout, message):
+    with pytest.raises(gabarito.LayoutError, match=message):
+        gabarito.load_layout(layout)
+
+
+def test_invalid_yaml_file(tmp_path):
+    bad = tmp_path / "bad.yml"
+    bad.write_text("records: [unclosed", encoding="utf-8")
+    with pytest.raises(gabarito.LayoutError, match="invalid YAML"):
+        gabarito.load_layout(bad)
+
+
+def test_write_rejects_bad_requests(tmp_path):
+    out = tmp_path / "o.txt"
+    with pytest.raises(gabarito.LayoutError, match="only produces fixed-width"):
+        gabarito.write(CSV_LAYOUT, {}, out)
+    with pytest.raises(gabarito.LayoutError, match="no record named 'nope'"):
+        gabarito.write(WRITE_LAYOUT, {"nope": "SELECT 1"}, out)
+    overlap = {"records": {"a": {"match": "^1", "fields": {"x": {"pos": [1, 5]}, "y": {"pos": [3, 5]}}}}}
+    with pytest.raises(gabarito.LayoutError, match="a.y overlaps"):
+        gabarito.write(overlap, {"a": "SELECT 'v' AS x"}, out)
+
+
+def test_init_needs_lines(tmp_path):
+    empty = tmp_path / "empty.txt"
+    empty.write_text("", encoding="utf-8")
+    with pytest.raises(gabarito.LayoutError, match="no lines to sample"):
+        gabarito.init(empty)
+
+
+def test_cli_sql_init_and_rejects_to_stdout(good, tmp_path, capsys):
+    layout = tmp_path / "layout.yml"
+    layout.write_text(yaml.safe_dump(LAYOUT), encoding="utf-8")
+    assert main(["sql", str(layout), str(good)]) == 0
+    assert "-- detalhe\nSELECT" in capsys.readouterr().out
+    assert main(["init", str(good)]) == 0
+    assert "record_1:" in capsys.readouterr().out
+    assert main(["--init", "SET threads=1", "rejects", str(layout), str(good)]) == 0
+    assert capsys.readouterr().out.strip() == "ok"
+    bad = write(tmp_path, ["7 unknown"], "bad.txt")
+    assert main(["rejects", str(layout), str(bad)]) == 1
+    assert "matches no record" in capsys.readouterr().out
+    assert main(["check", str(layout), str(bad)]) == 1
+    assert main(["write", str(layout), str(tmp_path / "w.txt"), "--from", "no-equals-sign"]) == 2
+    assert "expects RECORD=SQL" in capsys.readouterr().err
+
+
 def test_example_runs():
     ex = Path(__file__).parent.parent / "examples"
     assert gabarito.check(ex / "cobranca.yml", ex / "cobranca.txt") == []

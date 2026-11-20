@@ -31,7 +31,10 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "mypy>=2.4.1",
     "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "types-pyyaml>=6.0.12.20261113",
 ]
 
 [tool.ruff]
@@ -39,4 +42,12 @@ line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP", "SIM", "N"]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "ANN"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN"]
+"examples/*" = ["ANN"]
+
+[tool.mypy]
+strict = true
+files = ["src"]
