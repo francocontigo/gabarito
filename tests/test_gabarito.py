@@ -460,3 +460,33 @@ def test_example_runs():
     ex = Path(__file__).parent.parent / "examples"
     assert gabarito.check(ex / "cobranca.yml", ex / "cobranca.txt") == []
     assert len(gabarito.load(ex / "cobranca.yml", ex / "cobranca.txt")["detalhe"].fetchall()) == 3
+
+
+def test_encoding_auto(tmp_path):
+    text = "0HEADER\n1JOÃO      00000105002026031500\n9000001\n"
+    layout = {**LAYOUT, "encoding": "auto"}
+    for enc in ("utf-8", "latin-1"):
+        p = tmp_path / f"{enc}.txt"
+        p.write_bytes(text.encode(enc))
+        assert gabarito.detect_encoding(p) == enc
+        assert f"encoding='{enc}'" in gabarito.sql(layout, p)["detalhe"]
+        assert f"encoding: {enc}" in gabarito.init(p)
+    # A late accent still counts: the whole file is scanned, not a sample.
+    late = tmp_path / "late.txt"
+    late.write_bytes(b"1MARIA\n" * 50_000 + "1JOÃO\n".encode("latin-1"))
+    assert gabarito.detect_encoding(late) == "latin-1"
+    with pytest.raises(gabarito.LayoutError, match="different encodings"):
+        gabarito.detect_encoding(tmp_path / "*.txt")  # utf-8.txt next to latin-1.txt
+    with pytest.raises(gabarito.LayoutError, match="auto"):
+        gabarito.write({**WRITE_LAYOUT, "encoding": "auto"}, {}, tmp_path / "out.txt")
+
+
+def test_encoding_cp1252(tmp_path):
+    con = duckdb.connect()
+    try:
+        con.execute("INSTALL encodings")  # downloaded once; no network, no test
+    except duckdb.Error:
+        pytest.skip("encodings extension not available")
+    p = tmp_path / "win.txt"
+    p.write_bytes("1JOSÉ € 10\n".encode("cp1252"))  # 0x80 is not latin-1 for DuckDB
+    assert gabarito.detect_encoding(p, con) == "CP1252"

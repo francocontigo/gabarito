@@ -12,10 +12,10 @@ from gabarito._sql import _id, _raw, _source, _typed, _where
 from gabarito.layout import Connection, LayoutRef, PathRef, load_layout
 
 
-def sql(layout: LayoutRef, path: PathRef) -> dict[str, str]:
-    """One SELECT per record in the layout."""
+def sql(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> dict[str, str]:
+    """One SELECT per record in the layout. `con` is only used by `encoding: auto`, to read the file."""
     layout = load_layout(layout)
-    src = _source(layout, path)
+    src = _source(layout, path, con)
     file_col = "" if layout.get("source") == "xlsx" else "filename AS _file, "
     out = {}
     for rname, rec in layout["records"].items():
@@ -29,4 +29,4 @@ def sql(layout: LayoutRef, path: PathRef) -> dict[str, str]:
 def load(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> dict[str, duckdb.DuckDBPyRelation]:
     """One lazy DuckDB relation per record. Nothing is read until you query it."""
     con = con or duckdb.connect()
-    return {name: con.sql(q) for name, q in sql(layout, path).items()}
+    return {name: con.sql(q) for name, q in sql(layout, path, con).items()}

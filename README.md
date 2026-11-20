@@ -161,7 +161,7 @@ assert gabarito.check("retorno.yml", "retorno.txt") == []
 | Key | Meaning |
 |---|---|
 | `source` | `fixed` (default), `csv` or `xlsx` |
-| `encoding` | Default `utf-8`. Legacy files are often `latin-1` |
+| `encoding` | Default `utf-8`. Legacy files are often `latin-1`. `auto` picks the first of `utf-8`, `latin-1` (ISO-8859-1) and `CP1252` that decodes the whole file, at the cost of one extra read per attempt |
 | `records.<name>.match` | Regex that identifies the record's lines. Required for `fixed` |
 | `records.<name>.length` | Expected line length. Optional, used by `check` |
 | `fields.<name>.pos` | `[start, length]`, start counted from 1. `fixed` only |
@@ -308,7 +308,8 @@ Measured on synthetic CNAB 240 files, 16-thread Windows machine, DuckDB 1.5.6:
 ## Limits
 
 - Single machine. For volumes that need a cluster, export Parquet and use another engine.
-- `init` is a heuristic and there is no encoding detection.
+- `init` is a heuristic.
+- `encoding: auto` chooses one encoding per call: a glob with files in different encodings is an error. `CP1252` needs DuckDB's `encodings` extension, downloaded on first use.
 - Line numbers in `check` follow DuckDB's read order.
 - Tested with DuckDB 1.5 and 2.0, on Windows and Linux.
 

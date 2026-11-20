@@ -27,6 +27,8 @@ def write(
     layout = load_layout(layout)
     if layout.get("source", "fixed") != "fixed":
         raise LayoutError("write only produces fixed-width files; for CSV and Excel use DuckDB's COPY")
+    if layout.get("encoding") == "auto":
+        raise LayoutError("write: `encoding: auto` only applies to reading; name the encoding to write")
     con = con or duckdb.connect()
     records = layout["records"]
     unknown = set(tables) - set(records)

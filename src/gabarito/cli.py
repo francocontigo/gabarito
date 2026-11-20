@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("init", help="draft a layout from a sample of the file")
     p.add_argument("file")
     p.add_argument("--source", choices=("fixed", "csv", "xlsx"), help="default: guessed from the extension")
-    p.add_argument("--encoding", default="latin-1")
+    p.add_argument("--encoding", help="default: detected (utf-8, latin-1 or CP1252)")
     a = ap.parse_args(argv)
     # Redirected output on Windows uses the local code page and breaks non-ASCII text; UTF-8 everywhere.
     for stream in (sys.stdout, sys.stderr):
@@ -67,7 +67,7 @@ def _run(a: argparse.Namespace) -> int:
         print(init(a.file, a.source, a.encoding, con), end="")
         return 0
     if a.cmd == "sql":
-        for name, q in sql(a.layout, a.file).items():
+        for name, q in sql(a.layout, a.file, con).items():
             print(f"-- {name}\n{q};\n")
         return 0
     if a.cmd == "check":
@@ -78,7 +78,7 @@ def _run(a: argparse.Namespace) -> int:
             print("ok")
         return 1 if problems else 0
     if a.cmd == "rejects":
-        q = rejects_sql(a.layout, a.file)
+        q = rejects_sql(a.layout, a.file, con)
         if a.out:
             target = _posix(a.out).replace("'", "''")
             con.sql(f"COPY ({q}) TO '{target}'")  # format follows the extension
@@ -106,7 +106,7 @@ def _run(a: argparse.Namespace) -> int:
     out = _posix(a.out).rstrip("/")
     if "://" not in out:  # s3://... has no directory to create
         Path(out).mkdir(parents=True, exist_ok=True)
-    for name, q in sql(a.layout, a.file).items():
+    for name, q in sql(a.layout, a.file, con).items():
         target = f"{out}/{name}.parquet".replace("'", "''")
         con.sql(f"COPY ({q}) TO '{target}' (FORMAT parquet)")
         print(target)

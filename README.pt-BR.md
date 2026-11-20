@@ -133,7 +133,7 @@ assert gabarito.check("retorno.yml", "retorno.txt") == []
 | Chave | Significado |
 |---|---|
 | `source` | `fixed` (padrão), `csv` ou `xlsx` |
-| `encoding` | Padrão `utf-8`. Arquivo legado costuma ser `latin-1` |
+| `encoding` | Padrão `utf-8`. Arquivo legado costuma ser `latin-1`. `auto` escolhe o primeiro entre `utf-8`, `latin-1` (ISO-8859-1) e `CP1252` que decodifica o arquivo inteiro, ao custo de uma leitura a mais por tentativa |
 | `records.<nome>.match` | Regex que identifica as linhas do registro. Obrigatório em `fixed` |
 | `records.<nome>.length` | Tamanho esperado da linha. Opcional, usado pelo `check` |
 | `fields.<nome>.pos` | `[início, tamanho]`, início a partir de 1. Só em `fixed` |
@@ -280,7 +280,8 @@ Medido em arquivos CNAB 240 sintéticos, máquina Windows de 16 threads, DuckDB 
 ## Limites
 
 - Uma máquina só. Para volume que pede cluster, exporte Parquet e use outro engine.
-- O `init` é uma heurística e não há detecção de encoding.
+- O `init` é uma heurística.
+- `encoding: auto` escolhe um encoding por chamada: glob com arquivos em encodings diferentes dá erro. `CP1252` precisa da extensão `encodings` do DuckDB, baixada no primeiro uso.
 - Os números de linha do `check` seguem a ordem de leitura do DuckDB.
 - Testado com DuckDB 1.5 e 2.0, em Windows e Linux.
 

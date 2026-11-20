@@ -12,7 +12,7 @@ def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> li
     """Compare the file with the layout. An empty list means the file matches."""
     layout = load_layout(layout)
     con = con or duckdb.connect()
-    src = _source(layout, path)
+    src = _source(layout, path, con)
     fixed = layout.get("source", "fixed") == "fixed"
     records = layout["records"]
     problems: list[str] = []
@@ -100,10 +100,10 @@ def check(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> li
     return problems
 
 
-def rejects_sql(layout: LayoutRef, path: PathRef) -> str:
+def rejects_sql(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> str:
     """SELECT returning the lines that break the layout, each with the reasons."""
     layout = load_layout(layout)
-    src = _source(layout, path)
+    src = _source(layout, path, con)
     fixed = layout.get("source", "fixed") == "fixed"
     records = layout["records"]
 
@@ -139,4 +139,5 @@ def rejects_sql(layout: LayoutRef, path: PathRef) -> str:
 
 def rejects(layout: LayoutRef, path: PathRef, con: Connection | None = None) -> duckdb.DuckDBPyRelation:
     """Lazy relation with the lines that break the layout (see rejects_sql)."""
-    return (con or duckdb.connect()).sql(rejects_sql(layout, path))
+    con = con or duckdb.connect()
+    return con.sql(rejects_sql(layout, path, con))

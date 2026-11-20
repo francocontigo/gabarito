@@ -1,10 +1,14 @@
-"""SQL fragments shared by reading, checking and writing. Everything here returns text."""
+"""SQL fragments shared by reading, checking and writing, and the encoding detection they need."""
 
 from __future__ import annotations
 
 import os
 
-from gabarito.layout import Layout, PathRef
+import duckdb
+
+from gabarito.layout import Connection, Layout, LayoutError, PathRef
+
+ENCODINGS = ("utf-8", "latin-1", "CP1252")
 
 
 def _q(s: object) -> str:
@@ -22,11 +26,46 @@ def _id(s: object) -> str:
     return '"' + str(s).replace('"', '""') + '"'
 
 
-def _source(layout: Layout, path: PathRef) -> str:
+def detect_encoding(path: PathRef, con: Connection | None = None) -> str:
+    """The first of utf-8, latin-1 (ISO-8859-1) and CP1252 that decodes the whole file.
+
+    DuckDB rejects a file that is not valid in the encoding it was told, so this is a scan per
+    attempt. The order matters: CP1252 accepts almost any bytes, UTF-8 almost only UTF-8.
+    With a glob every file is tested on its own and they must agree.
+    """
+    con = con or duckdb.connect()
+    p = _posix(path)
+    # A path that matches nothing is tested as it is, so the reader gives its own "not found".
+    files = [r[0] for r in con.execute(f"SELECT file FROM glob({_q(p)})").fetchall()] or [p]
+    found: dict[str, str] = {}
+    for file in files:
+        for enc in ENCODINGS:
+            try:
+                con.execute(
+                    f"SELECT count(*) FROM read_csv({_q(file)}, sep='', quote='', escape='', header=false, "
+                    f"auto_detect=false, columns={{'line': 'VARCHAR'}}, encoding={_q(enc)})"
+                ).fetchall()
+            except duckdb.InvalidInputException:
+                continue
+            found.setdefault(enc, file)
+            break
+        else:
+            raise LayoutError(f"{file}: not {', '.join(ENCODINGS)}; set `encoding` in the layout")
+    if len(found) > 1:
+        # ponytail: one encoding per call. Reading each file in its own would need a UNION per file.
+        mix = ", ".join(f"{file} is {enc}" for enc, file in found.items())
+        raise LayoutError(f"{path}: files in different encodings ({mix}); read them separately")
+    return next(iter(found))
+
+
+def _source(layout: Layout, path: PathRef, con: Connection | None = None) -> str:
     """SQL for the raw relation. Everything arrives as text; types come later."""
     src = layout.get("source", "fixed")
     p = _q(_posix(path))
-    enc = _q(layout.get("encoding", "utf-8"))
+    enc = layout.get("encoding", "utf-8")
+    if enc == "auto" and src != "xlsx":
+        enc = detect_encoding(path, con)
+    enc = _q(enc)
     if src == "fixed":
         # sep='' and no quoting: the whole line becomes one column, whatever it contains.
         return (

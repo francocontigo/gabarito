@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `encoding: auto` and `detect_encoding()`: utf-8, latin-1 (ISO-8859-1) or CP1252, by decoding the whole file.
+- `init` detects the encoding instead of assuming latin-1.
+- `sql()` and `rejects_sql()` take an optional connection, used by `encoding: auto`.
+
 ## 0.2.0
 
 - `gabarito write`: write a fixed-width file from queries, with the same layout that reads it. `value` literals, `_order` to interleave records, and an error instead of a truncated number.
