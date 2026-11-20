@@ -1,0 +1,23 @@
+# Publishes a tag to PyPI. Run it by hand: Actions > publish > Run workflow, with the tag.
+# No token: PyPI trusts this workflow (Trusted Publisher configured on pypi.org).
+name: publish
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish, e.g. v0.3.0
+        required: true
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
