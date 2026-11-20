@@ -187,8 +187,7 @@ def sql(layout, path) -> dict[str, str]:
     out = {}
     for rname, rec in layout["records"].items():
         cols = ", ".join(
-            f"{_typed(layout, _raw(layout, n, f or {}), f or {})} AS {_id(n)}"
-            for n, f in rec["fields"].items()
+            f"{_typed(layout, _raw(layout, n, f or {}), f or {})} AS {_id(n)}" for n, f in rec["fields"].items()
         )
         out[rname] = f"SELECT {file_col}{cols} FROM {src}{_where(rec)}"
     return out
@@ -239,6 +238,7 @@ def check(layout, path, con=None) -> list[str]:
                 aggs[("bad", rname, n)] = (
                     f"count(*) FILTER (WHERE {is_(rec)} AND {raw} IS NOT NULL AND {_typed(layout, raw, f)} IS NULL)"
                 )
+
     def field_of(ref):
         rname, fname = ref.split(".")
         f = records[rname]["fields"][fname] or {}
@@ -250,7 +250,7 @@ def check(layout, path, con=None) -> list[str]:
         if "sum" in rule:
             expr, cond = field_of(rule["sum"])
             aggs[("sum", rule["sum"])] = f"coalesce(sum({expr}) FILTER (WHERE {cond}), 0)"
-    got = dict(zip(aggs, con.sql(f"SELECT {', '.join(aggs.values())} FROM {src}").fetchall()[0]))
+    got = dict(zip(aggs, con.sql(f"SELECT {', '.join(aggs.values())} FROM {src}").fetchall()[0], strict=True))
 
     def lines_where(cond):
         # ponytail: row_number() without ORDER BY follows file order in practice
@@ -455,8 +455,10 @@ def init(path, source=None, encoding="latin-1", con=None) -> str:
         # Class of each position across the sample: all digits, all blank, or anything else.
         # A field is a run of positions with the same class.
         cls = [
-            "d" if all(ln[j : j + 1].isdigit() for ln in group)
-            else "s" if all(not ln[j : j + 1].strip() for ln in group)
+            "d"
+            if all(ln[j : j + 1].isdigit() for ln in group)
+            else "s"
+            if all(not ln[j : j + 1].strip() for ln in group)
             else "a"
             for j in range(width)
         ]

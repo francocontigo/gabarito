@@ -3,6 +3,7 @@
 ```bash
 uv sync
 uv run pytest
+uvx ruff check . && uvx ruff format .
 ```
 
 ## Adding a bank or file layout

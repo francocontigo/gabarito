@@ -3,6 +3,15 @@ name = "gabarito"
 version = "0.2.0"
 description = "YAML layouts for fixed-width, CSV and Excel files. DuckDB gives you typed tables."
 license = "MIT"
+keywords = ["fixed-width", "cnab", "duckdb", "etl", "data-validation", "csv", "parquet"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Database",
+    "Topic :: Office/Business :: Financial",
+]
 readme = "README.md"
 authors = [
     { name = "Ricardo Franco", email = "ricardoaugustofranco@hotmail.com" }
@@ -24,3 +33,10 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.2.0",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "N"]

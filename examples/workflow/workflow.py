@@ -30,7 +30,10 @@ con.sql(f"ATTACH '{PG}' AS pg (TYPE postgres)")
 con.sql("DROP TABLE IF EXISTS pg.public.remessa_detalhe")
 con.sql("DROP TABLE IF EXISTS pg.public.contratos")
 con.sql("CREATE TABLE pg.public.contratos (contrato VARCHAR, status VARCHAR)")
-con.sql("INSERT INTO pg.public.contratos VALUES ('CT-0001','ATIVO'), ('CT-0002','ATIVO'), ('CT-0003','QUITADO'), ('CT-0005','ATIVO')")
+con.sql(
+    "INSERT INTO pg.public.contratos VALUES "
+    "('CT-0001','ATIVO'), ('CT-0002','ATIVO'), ('CT-0003','QUITADO'), ('CT-0005','ATIVO')"
+)
 
 print("1. check")
 for problem in gabarito.check(HERE / "entrada.yml", HERE / "entrada.txt", con) or ["ok"]:
@@ -70,5 +73,6 @@ n = gabarito.write(
     OUT / "retorno.txt",
     con,
 )
-print(f"   {n} lines; check of the file we just wrote:", gabarito.check(HERE / "retorno.yml", OUT / "retorno.txt") or "ok")
+written_ok = gabarito.check(HERE / "retorno.yml", OUT / "retorno.txt") or "ok"
+print(f"   {n} lines; check of the file we just wrote:", written_ok)
 print((OUT / "retorno.txt").read_text(encoding="latin-1"))

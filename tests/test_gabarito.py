@@ -130,7 +130,7 @@ def test_xlsx(tmp_path):
         pytest.skip("DuckDB excel extension unavailable (no network?)")
     p = (tmp_path / "d.xlsx").as_posix()
     con.sql(
-        "COPY (SELECT '000123' AS \"Contrato\", 1234.56 AS \"Valor\", '15/03/2026' AS \"Vencimento\") "
+        'COPY (SELECT \'000123\' AS "Contrato", 1234.56 AS "Valor", \'15/03/2026\' AS "Vencimento") '
         f"TO '{p}' WITH (FORMAT xlsx, HEADER true)"
     )
     layout = {**CSV_LAYOUT, "source": "xlsx"}
