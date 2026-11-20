@@ -90,6 +90,19 @@ Regras dos tipos:
 
 Cada tabela traz `_file` com o arquivo de origem (exceto `xlsx`).
 
+## CNAB 240
+
+Vem um layout pronto de cobrança: header e trailer de arquivo e de lote, segmentos P e Q (remessa), T e U (retorno).
+
+```bash
+remessa check cnab240 retorno.ret
+remessa export cnab240 retorno.ret saida/
+```
+
+As posições seguem o Layout Padrão FEBRABAN 240 posições, versão 10.1. Bancos mudam detalhes como convênio e nosso número: copie `src/remessa/layouts/cnab240.yml` e ajuste. Não foi testado com arquivo real de banco.
+
+CNAB 400 não tem padrão único entre bancos e não vem embutido.
+
 ## Levar para outro banco
 
 O DuckDB é só quem executa. Dois caminhos:

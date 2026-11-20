@@ -154,3 +154,39 @@ def test_cli_check_e_export(good, tmp_path, capsys):
     assert main(["export", str(layout), str(good), str(out)]) == 0
     n = duckdb.sql(f"SELECT count(*) FROM '{(out / 'detalhe.parquet').as_posix()}'").fetchone()[0]
     assert n == 2
+
+
+def cnab_line(**at):
+    """Linha de 240 posições; chaves são p<início>, valores entram a partir dali."""
+    line = [" "] * 240
+    for k, v in at.items():
+        start = int(k[1:]) - 1
+        line[start : start + len(v)] = v
+    return "".join(line)
+
+
+def test_cnab240_embutido(tmp_path):
+    p = write(
+        tmp_path,
+        [
+            cnab_line(p1="0010000", p8="0", p73="EMPRESA SINTÉTICA", p144="19112026"),
+            cnab_line(p1="0010001", p8="1", p9="R01"),
+            cnab_line(p1="0010001", p8="3", p9="00001P", p38="12345", p78="15122026", p86="000000000123456"),
+            cnab_line(p1="0010001", p8="3", p9="00002Q", p18="1", p19="000012345678901", p34="FULANO DE TAL"),
+            cnab_line(p1="0010001", p8="5", p18="000004"),
+            cnab_line(p1="0019999", p8="9", p18="000001", p24="000006"),
+        ],
+        "cnab.rem",
+    )
+    assert remessa.check("cnab240", p) == []
+    t = remessa.load("cnab240", p)
+    assert t["header_arquivo"].project("nome_empresa, data_geracao").fetchall() == [
+        ("EMPRESA SINTÉTICA", datetime.date(2026, 11, 19))
+    ]
+    assert t["segmento_p"].project("nosso_numero, data_vencimento, valor_nominal, data_emissao").fetchall() == [
+        ("12345", datetime.date(2026, 12, 15), Decimal("1234.56"), None)
+    ]
+    assert t["segmento_q"].project("pagador_numero_inscricao, pagador_nome").fetchall() == [
+        ("000012345678901", "FULANO DE TAL")
+    ]
+    assert t["trailer_arquivo"].project("qtd_lotes, qtd_registros").fetchall() == [(1, 6)]
