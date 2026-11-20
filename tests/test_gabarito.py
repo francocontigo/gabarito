@@ -506,3 +506,38 @@ def test_write_long_text_is_an_error(tmp_path):
     # Trailing blanks are padding; cutting on purpose happens in the query.
     for query in ("SELECT 'ANA' || repeat(' ', 20) AS nome", "SELECT left('MARIA APARECIDA', 10) AS nome"):
         assert gabarito.write(WRITE_LAYOUT, {"detalhe": query}, out) == 1
+
+
+def test_dbt_plugin(tmp_path, monkeypatch):
+    from dbt.cli.main import dbtRunner
+
+    ex = Path(__file__).parent.parent / "examples"
+    for name in ("cobranca.txt", "cobranca.yml"):
+        (tmp_path / name).write_bytes((ex / name).read_bytes())
+    (tmp_path / "dbt_project.yml").write_text("name: demo\nversion: '1.0'\nprofile: demo\n")
+    (tmp_path / "profiles.yml").write_text(
+        "demo:\n  target: dev\n  outputs:\n    dev:\n      type: duckdb\n      path: demo.duckdb\n"
+        "      plugins:\n        - module: gabarito.dbt\n          alias: gabarito\n"
+    )
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "sources.yml").write_text(
+        "sources:\n  - name: client\n"
+        "    meta: {plugin: gabarito, layout: cobranca.yml, path: cobranca.txt, check: true}\n"
+        "    tables:\n      - name: detalhe\n      - name: fim\n        meta: {record: trailer}\n"
+    )
+    (tmp_path / "models" / "total.sql").write_text(
+        "SELECT count(*) AS n, sum(valor) AS total, (SELECT qtd FROM {{ source('client', 'fim') }}) AS said "
+        "FROM {{ source('client', 'detalhe') }}"
+    )
+    monkeypatch.chdir(tmp_path)
+    run = ["run", "--profiles-dir", ".", "--quiet", "--threads", "4"]
+    assert dbtRunner().invoke(run).success
+    with duckdb.connect("demo.duckdb") as con:
+        assert con.sql("SELECT n, said FROM total").fetchall() == [(3, 3)]
+
+    # check: true stops the run when the file breaks the layout (here the trailer count).
+    text = (tmp_path / "cobranca.txt").read_text(encoding="latin-1")
+    (tmp_path / "cobranca.txt").write_text(text.replace("9000003", "9000007"), encoding="latin-1")
+    result = dbtRunner().invoke(run)
+    assert not result.success
+    assert "trailer.qtd says 7" in str([r.message for r in result.result.results])

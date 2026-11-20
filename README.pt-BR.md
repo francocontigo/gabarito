@@ -237,6 +237,38 @@ gabarito --init "CREATE SECRET (TYPE s3, PROVIDER credential_chain)" \
 
 Testado contra um S3 local (S3Mock), com chave fixa e endpoint próprio. Não testado contra a AWS.
 
+## Com dbt
+
+No [dbt-duckdb](https://github.com/duckdb/dbt-duckdb) há dois caminhos.
+
+O SQL gerado já é um modelo: `gabarito sql layout.yml cobranca.txt` imprime um SELECT por registro, e cada um pode ser salvo como um `.sql` em `models/`, sem o `;` final.
+
+Ou declare o arquivo como source e deixe o plugin ler. No `profiles.yml`, dentro do output duckdb:
+
+```yaml
+plugins:
+  - module: gabarito.dbt
+    alias: gabarito
+```
+
+Num `sources.yml`:
+
+```yaml
+sources:
+  - name: client
+    meta: {plugin: gabarito, layout: layout.yml, path: cobranca.txt, check: true}
+    tables:
+      - name: detalhe            # um registro do layout
+      - name: fim
+        meta: {record: trailer}  # quando a tabela e o registro têm nomes diferentes
+```
+
+```sql
+SELECT contrato, valor FROM {{ source('client', 'detalhe') }} WHERE valor > 100
+```
+
+Com `check: true`, um arquivo que quebra o layout faz o `dbt run` falhar antes de carregar qualquer coisa. Cada registro vira uma tabela. Os caminhos são relativos ao diretório em que o dbt roda. Outros adaptadores do dbt não são suportados: o SQL lê o arquivo com o `read_csv` do DuckDB.
+
 ## Outros bancos
 
 O DuckDB é só quem executa. Dois caminhos:
