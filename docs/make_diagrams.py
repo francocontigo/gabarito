@@ -67,7 +67,7 @@ with diagram("workflow-load"):
     db = node(PostgreSQL, "Postgres\ntyped table")
 
     client >> edge("sends") >> file >> check >> edge("file matches") >> load
-    load >> edge("ATTACH") >> db
+    load >> edge("loads") >> db
     check >> edge("rejects", **BAD) >> rejects
 
 
