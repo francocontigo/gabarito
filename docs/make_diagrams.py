@@ -2,7 +2,7 @@
 
     uv run --with diagrams python docs/make_diagrams.py
 
-Needs Graphviz (`dot`) on the PATH. Writes PNG files next to this script.
+Needs Graphviz (`dot`) on the PATH. Writes PNG files to docs/diagrams.
 """
 
 from pathlib import Path
@@ -37,7 +37,7 @@ BAD = {"color": "#b42318", "fontcolor": "#b42318", "style": "dashed"}
 def diagram(name: str) -> Diagram:
     return Diagram(
         "",
-        filename=str(HERE / name),
+        filename=str(HERE / "diagrams" / name),
         outformat="png",
         show=False,
         direction="LR",
@@ -57,7 +57,7 @@ def edge(label: str = "", **attrs: str) -> Edge:
     return Edge(label=f"  {label}  " if label else "", fontname=FONT, fontsize="21", **attrs)
 
 
-with diagram("workflow-load"):
+with diagram("load"):
     client = node(Client, "client")
     file = node(Document, "cobranca.txt\nfixed-width")
     with Cluster("gabarito  ·  layout.yml", graph_attr=CLUSTER):
@@ -71,7 +71,7 @@ with diagram("workflow-load"):
     check >> edge("rejects", **BAD) >> rejects
 
 
-with diagram("workflow-lake"):
+with diagram("lake"):
     landing = node(S3, "s3://landing\n*.txt, *.rem")
     with Cluster("gabarito  ·  cnab240", graph_attr=CLUSTER):
         check = node(Python, "check")
@@ -85,7 +85,7 @@ with diagram("workflow-lake"):
         parquet >> engine
 
 
-with diagram("workflow-return"):
+with diagram("return"):
     db = node(PostgreSQL, "Postgres\naccepted rows")
     with Cluster("gabarito  ·  retorno.yml", graph_attr=CLUSTER):
         write = node(Python, "write")

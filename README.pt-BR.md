@@ -75,7 +75,7 @@ Três jeitos de usar. Os diagramas são gerados por [`docs/make_diagrams.py`](do
 
 ### Validar o arquivo do cliente e carregar no banco
 
-![validar e carregar](docs/workflow-load.png)
+![validar e carregar](docs/diagrams/load.png)
 
 ```python
 con.sql("ATTACH 'postgresql://user:pass@host/db' AS pg (TYPE postgres)")
@@ -91,7 +91,7 @@ Versão executável, com Postgres no Docker: [`examples/workflow`](examples/work
 
 ### Do bucket de chegada ao warehouse
 
-![bucket de chegada ao warehouse](docs/workflow-lake.png)
+![bucket de chegada ao warehouse](docs/diagrams/lake.png)
 
 ```bash
 S3="CREATE SECRET (TYPE s3, PROVIDER credential_chain)"
@@ -103,7 +103,7 @@ O `check` sai com 1 quando um arquivo quebra o layout, então a exportação só
 
 ### Escrever o arquivo de retorno a partir de uma consulta
 
-![arquivo de retorno](docs/workflow-return.png)
+![arquivo de retorno](docs/diagrams/return.png)
 
 ```python
 gabarito.write(
